@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { ITEMS, HATCH_TOTAL, eggLevel, useHatchProgress } from "../hooks/useHatchProgress";
 import { useSound } from "../hooks/useSound";
 import { Backdrop, TopBar, EggArt, Ticker } from "../components/Shell";
+import { Market } from "../components/Market";
 
 /** When the Barn's 72-hour routine begins. Move this and everything reflows. */
 export const BARN_OPENS_AT = new Date("2026-09-08T16:00:00Z");
@@ -297,45 +298,15 @@ export default function RoostEvent() {
             <span className="eyebrow">Farmers' Market</span>
             <span className="chip">{balance} BP to spend</span>
           </div>
-
-          {!eggClaimed ? (
-            <p className="muted" style={{ margin: 0 }}>
-              Claim your egg to open the market. Stock is unlimited — the only thing that gates a
-              purchase is your BP balance.
-            </p>
-          ) : (
-            <>
-              <div className="market-grid">
-                {ITEMS.map((item) => {
-                  const isOwned = owned.has(item.key);
-                  const canAfford = balance >= item.price;
-                  return (
-                    <div className={`market-item ${isOwned ? "market-owned" : ""}`} key={item.key}>
-                      <img className={`market-art ${isOwned ? "" : "art-locked"}`} src={item.image} alt="" />
-                      <div className="market-body">
-                        <b style={{ fontFamily: "var(--display)", fontSize: "1rem" }}>
-                          {item.icon} {item.name}
-                        </b>
-                        <span className="market-price">{item.price} BP</span>
-                        <button
-                          className="btn btn-sm"
-                          style={{ marginTop: "auto" }}
-                          onClick={() => onBuy(item)}
-                          disabled={isOwned || !canAfford}
-                        >
-                          {isOwned ? "Collected ✓" : canAfford ? "Buy" : "Need more BP"}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {marketMsg && <p className="notice">{marketMsg}</p>}
-              <p className="muted" style={{ fontSize: "0.82rem", margin: 0 }}>
-                Earned {earned} BP · Spent {spent} BP · {Math.max(0, HATCH_TOTAL - spent)} BP left to a full hatch.
-              </p>
-            </>
-          )}
+          <Market
+            eggClaimed={eggClaimed}
+            owned={owned}
+            balance={balance}
+            earned={earned}
+            spent={spent}
+            message={marketMsg}
+            onBuy={onBuy}
+          />
         </div>
 
         {/* ── Briefing ── */}
