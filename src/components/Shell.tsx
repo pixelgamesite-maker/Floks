@@ -1,5 +1,9 @@
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { supabase } from "../lib/supabase";
+import { useHatchProgress, HATCH_TOTAL, EGG_STAGES, eggLevel, ITEMS, type ItemKey } from "../hooks/useHatchProgress";
+import { useSound } from "../hooks/useSound";
 
 /** Fixed site background (Flok-background.png) + darkening scrim. */
 export function Backdrop() {
@@ -15,7 +19,6 @@ export function XGlyph({ size = 16 }: { size?: number }) {
 }
 
 export function TopBar({ back }: { back?: { to: string; label: string } }) {
-  const { resident, signOut } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -30,20 +33,116 @@ export function TopBar({ back }: { back?: { to: string; label: string } }) {
           Floks
         </Link>
       )}
-
-      {resident && (
-        <div className="who">
-          <img src={resident.avatar} alt="" />
-          <div>
-            <div className="who-handle">@{resident.handle}</div>
-            <div className="who-handle muted">{resident.barnPoints} BP</div>
-          </div>
-          <button className="btn btn-ghost btn-sm" onClick={signOut}>
-            Sign out
-          </button>
-        </div>
-      )}
+      <ProfileMenu />
     </header>
+  );
+}
+
+function ProfileMenu() {
+  const { resident, signOut } = useAuth();
+  const { spent, balance, owned, progress, hatchReady } = useHatchProgress(resident?.id);
+  const { muted, toggleMute } = useSound();
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [referrals, setReferrals] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!open || !resident) return;
+    supabase
+      .from("residents")
+      .select("id", { count: "exact", head: true })
+      .eq("referred_by", resident.id)
+      .then(({ count }) => setReferrals(count ?? 0));
+  }, [open, resident]);
+
+  if (!resident) return null;
+
+  const link = `${window.location.origin}/?ref=${resident.handle}`;
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard blocked — the input is still selectable for manual copy */
+    }
+  }
+
+  return (
+    <div className="profile-wrap">
+      <button className="who" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="true">
+        <img src={resident.avatar} alt="" />
+        <div>
+          <div className="who-handle">@{resident.handle}</div>
+          <div className="who-handle muted">{balance} BP</div>
+        </div>
+      </button>
+
+      {open && (
+        <>
+          <button className="scrim" aria-label="Close profile menu" onClick={() => setOpen(false)} />
+          <div className="profile-card panel stack">
+            <div className="row" style={{ gap: 12 }}>
+              <img
+                src={resident.avatar}
+                alt=""
+                style={{ width: 48, height: 48, borderRadius: "50%", border: "2px solid var(--ink)", objectFit: "cover" }}
+              />
+              <div>
+                <b style={{ fontFamily: "var(--display)", fontSize: "1.05rem" }}>@{resident.handle}</b>
+                <div className="muted" style={{ fontSize: "0.78rem" }}>{resident.name}</div>
+              </div>
+            </div>
+
+            <div className="stack" style={{ gap: 6 }}>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <span className="eyebrow">Hatch progress</span>
+                <span className="chip">{spent}/{HATCH_TOTAL} BP</span>
+              </div>
+              <div className="progress-track">
+                <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
+              </div>
+              <p className="muted" style={{ fontSize: "0.78rem", margin: 0 }}>
+                {hatchReady ? "All five items collected 🎉" : `${balance} BP ready to spend at the market`}
+              </p>
+            </div>
+
+            <div className="stack" style={{ gap: 6 }}>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <span className="eyebrow">Your items</span>
+                <span className="chip">{owned.size}/5</span>
+              </div>
+              <ItemStrip owned={owned} />
+            </div>
+
+            <div className="stack" style={{ gap: 6 }}>
+              <span className="eyebrow">Your referral link</span>
+              <div className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+                <input readOnly value={link} className="ref-input" onFocus={(e) => e.currentTarget.select()} />
+                <button className="btn btn-sm" onClick={copyLink}>
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              {referrals !== null && (
+                <p className="muted" style={{ fontSize: "0.78rem", margin: 0 }}>
+                  {referrals} {referrals === 1 ? "resident" : "residents"} joined via you
+                </p>
+              )}
+            </div>
+
+            <div className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+              <button className="btn btn-ghost btn-sm" onClick={toggleMute} style={{ flex: 1 }}>
+                {muted ? "🔇 Sound off" : "🔊 Sound on"}
+              </button>
+              <button className="btn btn-ink btn-sm" onClick={signOut} style={{ flex: 1 }}>
+                Sign out
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -69,9 +168,52 @@ export function Ticker() {
 }
 
 /**
- * The egg. `crack` (0–1) widens the shell fracture — Landing drives it from
- * button hover so the sign-in gesture literally starts the hatch.
+ * The levelled egg. Idles quietly, wiggles roughly every 16 seconds, and pops
+ * when `level` changes (the `key` forces the animation to re-trigger).
  */
+export function EggArt({
+  level,
+  size = 220,
+  label,
+}: {
+  level: number;
+  size?: number;
+  label?: string;
+}) {
+  const src = EGG_STAGES[Math.min(level, EGG_STAGES.length - 1)];
+  return (
+    <div className="egg-stage">
+      <img
+        key={src}
+        className="egg-img"
+        src={src}
+        alt={label ?? `Egg, level ${eggLevel(level)}`}
+        style={{ width: `min(${size}px, 60vw)` }}
+      />
+      {label && <p className="center eyebrow" style={{ marginTop: 10 }}>{label}</p>}
+    </div>
+  );
+}
+
+/**
+ * The five hatch items as a compact strip — greyed out until owned, full
+ * colour once collected. Used in the profile menu and on The Barn.
+ */
+export function ItemStrip({ owned }: { owned: Set<ItemKey> }) {
+  return (
+    <div className="item-strip">
+      {ITEMS.map((item) => {
+        const has = owned.has(item.key);
+        return (
+          <div className={`item-pip ${has ? "item-pip-on" : ""}`} key={item.key} title={item.name}>
+            <img src={item.image} alt={item.name} />
+            <span>{has ? item.name : "???"}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 export function Egg({ crack = 0 }: { crack?: number }) {
   return (
     <div className="egg-stage">
