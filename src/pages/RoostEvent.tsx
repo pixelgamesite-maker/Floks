@@ -1,25 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabase";
-import { Backdrop, TopBar, Ticker } from "../components/Shell";
+import { ITEMS, HATCH_TOTAL, eggLevel, useHatchProgress } from "../hooks/useHatchProgress";
+import { useSound } from "../hooks/useSound";
+import { Backdrop, TopBar, EggArt, Ticker } from "../components/Shell";
 
 /** When the Barn's 72-hour routine begins. Move this and everything reflows. */
 export const BARN_OPENS_AT = new Date("2026-09-08T16:00:00Z");
 
-const ITEMS = [
-  { icon: "🧰", name: "Incubator", note: "Keeps the heat honest" },
-  { icon: "🌡️", name: "Thermometer", note: "Reads the roost" },
-  { icon: "🪹", name: "Nest", note: "Somewhere to sit" },
-  { icon: "💧", name: "Water", note: "Non-negotiable" },
-  { icon: "💡", name: "Heat Bulb", note: "The last 10%" },
+const FLOKS_X = "https://x.com/FloksRH";
+const FLOKS_POST = "https://x.com/FloksRH/status/2090831543329517768";
+
+/** One-time entry task, called out on its own above the repeatable social set. */
+const FOLLOW_TASK = {
+  key: "follow",
+  label: "Follow @FloksRH on X",
+  hint: "One-time · unlocks the rest",
+  points: 100,
+  href: FLOKS_X,
+};
+
+const SOCIAL_TASKS = [
+  { key: "like", label: "Like the Floks post", points: 25, href: FLOKS_POST },
+  { key: "comment", label: "Comment on the Floks post", points: 50, href: FLOKS_POST },
+  { key: "retweet", label: "Retweet the Floks post", points: 25, href: FLOKS_POST },
 ];
 
-const TASKS = [
-  { key: "follow", label: "Follow @floks on X", points: 25, href: "https://x.com/floks" },
-  { key: "quote", label: "Quote the pinned post with your favourite Flok", points: 40, href: "https://x.com/floks" },
-  { key: "chat", label: "Say gYolk in the Global Farmers Chat", points: 30, href: "" },
-  { key: "invite", label: "Bring one fren to the Barn", points: 50, href: "" },
-];
+const ALL_TASKS = [FOLLOW_TASK, ...SOCIAL_TASKS];
 
 const CHAPTERS = [
   {
@@ -32,7 +39,7 @@ const CHAPTERS = [
   },
   {
     title: "Points, then items",
-    body: "Barn Points come from the Global Farmers Chat, social tasks, Floks-specific tasks, community activities, and whatever else the Flock cooks up. Spend them at the Farmers' Market on the five items. Collect all five and your egg is ready.",
+    body: "Barn Points come from the Global Farmers Chat, social tasks, Floks-specific tasks, community activities, and whatever else the Flock cooks up. Spend them at the Farmers' Market on the five items. Every item you buy levels up your egg.",
   },
   {
     title: "Hatch, then mint",
@@ -69,11 +76,23 @@ function useCountdown(target: Date) {
 
 export default function RoostEvent() {
   const { resident } = useAuth();
-  const [done, setDone] = useState<Record<string, boolean>>({});
+  const { earned, spent, balance, owned, hatchReady, eggClaimed, loading, refresh, claimEgg, buy } =
+    useHatchProgress(resident?.id);
+  const { play } = useSound();
+
+  const [taskDone, setTaskDone] = useState<Record<string, boolean>>({});
   const [open, setOpen] = useState(0);
+  const [claiming, setClaiming] = useState(false);
+  const [showClaim, setShowClaim] = useState(false);
+  const [marketMsg, setMarketMsg] = useState("");
+  const [justLeveled, setJustLeveled] = useState(false);
   const clock = useCountdown(BARN_OPENS_AT);
 
-  // Load which starter tasks this resident already cleared.
+  // The egg pops up for claiming the moment an unclaimed resident lands here.
+  useEffect(() => {
+    if (!loading && !eggClaimed) setShowClaim(true);
+  }, [loading, eggClaimed]);
+
   useEffect(() => {
     if (!resident) return;
     supabase
@@ -81,36 +100,83 @@ export default function RoostEvent() {
       .select("task_key")
       .eq("resident_id", resident.id)
       .then(({ data }) => {
-        if (data) setDone(Object.fromEntries(data.map((r) => [r.task_key, true])));
+        if (data) setTaskDone(Object.fromEntries(data.map((r) => [r.task_key, true])));
       });
   }, [resident]);
 
-  const earned = useMemo(
-    () => TASKS.filter((t) => done[t.key]).reduce((sum, t) => sum + t.points, 0),
-    [done]
+  const tasksEarned = useMemo(
+    () => ALL_TASKS.filter((t) => taskDone[t.key]).reduce((sum, t) => sum + t.points, 0),
+    [taskDone]
   );
 
-  // NOTE: this marks the task optimistically. Before launch, move the award into
-  // an edge function that actually verifies the follow/quote — otherwise points
-  // are trivial to fake from the console.
-  async function claim(task: (typeof TASKS)[number]) {
-    if (done[task.key]) return;
+  const followDone = !!taskDone[FOLLOW_TASK.key];
+  const level = owned.size;
+
+  // NOTE: marks the task optimistically — see README before launch.
+  async function claimTask(task: (typeof ALL_TASKS)[number]) {
+    if (taskDone[task.key] || !resident) return;
+    play("select");
     if (task.href) window.open(task.href, "_blank", "noopener");
-    setDone((d) => ({ ...d, [task.key]: true }));
-    if (resident) {
-      await supabase
-        .from("resident_tasks")
-        .upsert(
-          { resident_id: resident.id, task_key: task.key, points: task.points },
-          { onConflict: "resident_id,task_key" }
-        );
+    setTaskDone((d) => ({ ...d, [task.key]: true }));
+    await supabase
+      .from("resident_tasks")
+      .upsert(
+        { resident_id: resident.id, task_key: task.key, points: task.points },
+        { onConflict: "resident_id,task_key" }
+      );
+    refresh();
+  }
+
+  async function onClaimEgg() {
+    setClaiming(true);
+    await claimEgg();
+    play("claim");
+    setClaiming(false);
+    setShowClaim(false);
+  }
+
+  async function onBuy(item: (typeof ITEMS)[number]) {
+    setMarketMsg("");
+    const before = owned.size;
+    const res = await buy(item);
+    if (res.ok) {
+      const nextLevel = eggLevel(before + 1);
+      if (nextLevel !== eggLevel(before)) {
+        play("levelup");
+        setJustLeveled(true);
+        setTimeout(() => setJustLeveled(false), 900);
+      } else {
+        play("purchase");
+      }
+      return;
     }
+    play("error");
+    if (res.reason === "short") setMarketMsg(`Not enough BP for ${item.name} yet — you need ${item.price - balance} more.`);
+    if (res.reason === "error") setMarketMsg("The market didn't take that one — try again.");
   }
 
   return (
     <div className="page">
       <Backdrop />
       <TopBar back={{ to: "/home", label: "Coops" }} />
+
+      {/* ── Egg claim popup ── */}
+      {showClaim && !eggClaimed && (
+        <div className="modal-scrim">
+          <div className="modal-card panel stack center">
+            <span className="eyebrow">Your egg has arrived</span>
+            <EggArt level={0} size={200} />
+            <h2 className="h-md">A Level 1 Egg</h2>
+            <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.95rem", maxWidth: "34ch" }}>
+              One per resident, free. Claim it and it stays on your Roost — every item you buy at the
+              Farmers' Market levels it up.
+            </p>
+            <button className="btn" onClick={onClaimEgg} disabled={claiming}>
+              {claiming ? "Claiming…" : "Claim your egg 🥚"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="wrap stack">
         <div className="stack" style={{ gap: 12 }}>
@@ -119,8 +185,8 @@ export default function RoostEvent() {
             The <span className="word-yolk">Roost</span> Event
           </h1>
           <p className="lede" style={{ color: "var(--cream)" }}>
-            Everything that happens before the Barn opens happens here. Read the plan, bank your first
-            Barn Points, and be standing in the right place when the doors move.
+            Claim your egg, earn Barn Points, and spend them at the Farmers' Market. Five items, five
+            levels of egg, one hatch.
           </p>
         </div>
 
@@ -142,32 +208,137 @@ export default function RoostEvent() {
           {clock.done && <p className="notice">Doors are open. Head to The Barn.</p>}
         </div>
 
-        {/* Starter tasks */}
+        {/* ── Your egg ── */}
+        <div className="panel split">
+          <div className={justLeveled ? "egg-levelup" : ""}>
+            {eggClaimed ? (
+              <EggArt level={level} label={`Level ${eggLevel(level)} · ${level}/5 items`} />
+            ) : (
+              <EggArt level={0} label="Unclaimed" />
+            )}
+          </div>
+
+          <div className="stack" style={{ gap: 10 }}>
+            <span className="eyebrow">Your egg</span>
+            <h2 className="h-md">
+              {!eggClaimed
+                ? "Waiting to be claimed"
+                : hatchReady
+                ? "Ready to hatch"
+                : `Level ${eggLevel(level)} and growing`}
+            </h2>
+            <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.95rem" }}>
+              {!eggClaimed
+                ? "Claim it above to open the Farmers' Market."
+                : hatchReady
+                ? "All five items collected. The hatch itself opens with the Barn."
+                : "Each item you buy levels the egg up. Five items takes it to the top."}
+            </p>
+            <div className="row">
+              <span className="chip">{spent}/{HATCH_TOTAL} BP toward hatch</span>
+              <span className="chip">{balance} BP to spend</span>
+            </div>
+            {!eggClaimed && (
+              <button className="btn" onClick={() => setShowClaim(true)}>
+                Claim your egg 🥚
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Tasks (below the egg) ── */}
         <div className="panel stack">
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <span className="eyebrow">Starter tasks</span>
-            <span className="chip">{earned} BP banked</span>
+            <span className="eyebrow">Tasks</span>
+            <span className="chip">{tasksEarned} BP banked</span>
           </div>
+
+          {/* One-time entry task */}
+          <button
+            className={`task task-hero ${followDone ? "task-done" : ""}`}
+            onClick={() => claimTask(FOLLOW_TASK)}
+            disabled={followDone}
+          >
+            <span className="task-box">{followDone ? "✓" : "𝕏"}</span>
+            <span>
+              <b style={{ fontFamily: "var(--display)", fontSize: "1.05rem", display: "block" }}>
+                {FOLLOW_TASK.label}
+              </b>
+              <small className="muted" style={{ fontSize: "0.72rem" }}>{FOLLOW_TASK.hint}</small>
+            </span>
+            <span className="task-points">+{FOLLOW_TASK.points} BP</span>
+          </button>
+
+          <span className="eyebrow" style={{ marginTop: 4 }}>Social tasks</span>
           <div className="stack" style={{ gap: 10 }}>
-            {TASKS.map((t) => (
+            {SOCIAL_TASKS.map((t) => (
               <button
                 key={t.key}
-                className={`task ${done[t.key] ? "task-done" : ""}`}
-                onClick={() => claim(t)}
-                disabled={done[t.key]}
+                className={`task ${taskDone[t.key] ? "task-done" : ""}`}
+                onClick={() => claimTask(t)}
+                disabled={taskDone[t.key] || !followDone}
               >
-                <span className="task-box">{done[t.key] ? "✓" : ""}</span>
+                <span className="task-box">{taskDone[t.key] ? "✓" : ""}</span>
                 <span>{t.label}</span>
                 <span className="task-points">+{t.points} BP</span>
               </button>
             ))}
           </div>
-          <p className="muted" style={{ fontSize: "0.82rem", margin: 0 }}>
-            Points carry into the Barn and spend at the Farmers' Market.
-          </p>
+          {!followDone && (
+            <p className="muted" style={{ fontSize: "0.82rem", margin: 0 }}>
+              Follow first — the social tasks unlock right after.
+            </p>
+          )}
         </div>
 
-        {/* The briefing, as openable chapters */}
+        {/* ── Farmers' Market ── */}
+        <div className="panel stack">
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span className="eyebrow">Farmers' Market</span>
+            <span className="chip">{balance} BP to spend</span>
+          </div>
+
+          {!eggClaimed ? (
+            <p className="muted" style={{ margin: 0 }}>
+              Claim your egg to open the market. Stock is unlimited — the only thing that gates a
+              purchase is your BP balance.
+            </p>
+          ) : (
+            <>
+              <div className="market-grid">
+                {ITEMS.map((item) => {
+                  const isOwned = owned.has(item.key);
+                  const canAfford = balance >= item.price;
+                  return (
+                    <div className={`market-item ${isOwned ? "market-owned" : ""}`} key={item.key}>
+                      <img className={`market-art ${isOwned ? "" : "art-locked"}`} src={item.image} alt="" />
+                      <div className="market-body">
+                        <b style={{ fontFamily: "var(--display)", fontSize: "1rem" }}>
+                          {item.icon} {item.name}
+                        </b>
+                        <span className="market-price">{item.price} BP</span>
+                        <button
+                          className="btn btn-sm"
+                          style={{ marginTop: "auto" }}
+                          onClick={() => onBuy(item)}
+                          disabled={isOwned || !canAfford}
+                        >
+                          {isOwned ? "Collected ✓" : canAfford ? "Buy" : "Need more BP"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {marketMsg && <p className="notice">{marketMsg}</p>}
+              <p className="muted" style={{ fontSize: "0.82rem", margin: 0 }}>
+                Earned {earned} BP · Spent {spent} BP · {Math.max(0, HATCH_TOTAL - spent)} BP left to a full hatch.
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* ── Briefing ── */}
         <div className="panel stack">
           <span className="eyebrow">The briefing</span>
           <div className="stack" style={{ gap: 10 }}>
@@ -176,7 +347,10 @@ export default function RoostEvent() {
                 <button
                   className="task"
                   style={{ border: 0, borderRadius: 0, boxShadow: "none", background: open === i ? "var(--yolk)" : "var(--shell)" }}
-                  onClick={() => setOpen(open === i ? -1 : i)}
+                  onClick={() => {
+                    play("select");
+                    setOpen(open === i ? -1 : i);
+                  }}
                   aria-expanded={open === i}
                 >
                   <span className="task-box">{open === i ? "–" : "+"}</span>
@@ -187,23 +361,6 @@ export default function RoostEvent() {
                     {c.body}
                   </p>
                 )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Five items preview */}
-        <div className="panel stack">
-          <span className="eyebrow">What a hatch needs</span>
-          <h2 className="h-md">Five items, no substitutes</h2>
-          <div className="grid-items">
-            {ITEMS.map((it) => (
-              <div className="item" key={it.name}>
-                <span className="item-icon" aria-hidden="true">{it.icon}</span>
-                <div>
-                  <b>{it.name}</b>
-                  <small>{it.note}</small>
-                </div>
               </div>
             ))}
           </div>
