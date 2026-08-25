@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase";
-import { Backdrop, Egg } from "../components/Shell";
+import { supabase } from "../../lib/supabase";
+import { Backdrop, Egg } from "../../components/Shell";
 
 export default function Callback() {
   const navigate = useNavigate();
