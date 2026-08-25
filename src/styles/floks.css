@@ -337,14 +337,204 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
   to   { transform: translateX(-50%); }
 }
 
-/* ── Egg ────────────────────────────────────────────── */
-.egg-stage { display: grid; place-items: center; padding: 10px; }
+/* ── Egg (SVG version, used on Landing + Callback) ──── */
 .egg { width: min(260px, 60vw); animation: bob 3.4s ease-in-out infinite; }
 @keyframes bob {
   0%, 100% { transform: translateY(0) rotate(-2deg); }
   50%      { transform: translateY(-12px) rotate(2deg); }
 }
 .egg-crack { transition: opacity 0.25s ease, transform 0.25s ease; }
+
+/* ── Egg art ────────────────────────────────────────── */
+.egg-stage { display: grid; place-items: center; padding: 10px; }
+
+.egg-img {
+  display: block;
+  image-rendering: auto;
+  transform-origin: 50% 92%;
+  /* Idle: sits still, then wiggles once near the end of each ~16s cycle. */
+  animation: egg-idle 16s ease-in-out infinite, egg-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes egg-idle {
+  0%, 84%   { transform: rotate(0deg) translateY(0); }
+  87%       { transform: rotate(-7deg) translateY(-6px); }
+  90%       { transform: rotate(6deg) translateY(-2px); }
+  93%       { transform: rotate(-4deg) translateY(-4px); }
+  96%       { transform: rotate(3deg) translateY(0); }
+  100%      { transform: rotate(0deg) translateY(0); }
+}
+@keyframes egg-pop {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* Level-up flash on the wrapper */
+.egg-levelup { animation: levelup 0.9s ease both; }
+@keyframes levelup {
+  0%   { transform: scale(1); filter: brightness(1); }
+  30%  { transform: scale(1.12) rotate(-3deg); filter: brightness(1.5); }
+  60%  { transform: scale(0.97) rotate(2deg); filter: brightness(1.15); }
+  100% { transform: scale(1) rotate(0); filter: brightness(1); }
+}
+
+/* ── Modal ──────────────────────────────────────────── */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(20, 18, 16, 0.72);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  animation: fade-in 0.25s ease both;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.modal-card {
+  width: min(420px, 100%);
+  align-items: center;
+  gap: 14px;
+  animation: modal-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes modal-in {
+  from { transform: translateY(24px) scale(0.94); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* ── Item strip (profile) ───────────────────────────── */
+.item-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.item-pip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 3px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: var(--cream);
+}
+.item-pip img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  filter: grayscale(1) opacity(0.35);
+  transition: filter 0.3s ease;
+}
+.item-pip span {
+  font-family: var(--mono);
+  font-size: 0.48rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  text-align: center;
+  line-height: 1.1;
+}
+.item-pip-on { background: var(--mint); }
+.item-pip-on img { filter: none; }
+.item-pip-on span { opacity: 1; font-weight: 700; }
+
+/* Unowned market art reads as locked stock */
+.art-locked { filter: grayscale(1) opacity(0.5); transition: filter 0.3s ease; }
+.market-item:hover .art-locked { filter: grayscale(0.6) opacity(0.75); }
+
+/* Highlighted one-time task */
+.task-hero {
+  background: var(--yolk);
+  box-shadow: var(--pop);
+  align-items: flex-start;
+}
+.task-hero.task-done { background: var(--mint); }
+
+/* ── Profile dropdown ───────────────────────────────── */
+.profile-wrap { position: relative; }
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 0;
+  padding: 5px 8px 5px 5px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  transition: background 0.15s ease;
+}
+.who:hover { background: rgba(20, 18, 16, 0.06); }
+.who img {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  object-fit: cover;
+  background: var(--straw);
+}
+.who-handle { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; text-align: left; }
+
+.scrim { position: fixed; inset: 0; background: transparent; border: 0; padding: 0; z-index: 45; cursor: default; }
+
+.profile-card {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(320px, 88vw);
+  z-index: 46;
+  gap: 16px;
+}
+
+.progress-track {
+  height: 14px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--cream);
+  overflow: hidden;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.progress-fill {
+  height: 100%;
+  background: var(--yolk);
+  transition: width 0.4s ease;
+}
+
+.ref-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 9px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: var(--cream);
+  color: var(--ink);
+}
+
+/* ── Market ─────────────────────────────────────────── */
+.market-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+}
+.market-item {
+  border: var(--edge);
+  border-radius: 16px;
+  background: var(--shell);
+  box-shadow: var(--pop-sm);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.market-owned { box-shadow: 0 0 0 3px var(--mint) inset, var(--pop-sm); }
+.market-art {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  padding: 14px;
+  border-bottom: var(--edge);
+  background: var(--cream);
+}
+.market-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.market-price { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; opacity: 0.7; }
 
 /* ── Layout helpers ─────────────────────────────────── */
 .wrap { max-width: 1080px; margin: 0 auto; padding: clamp(28px, 5vw, 60px) var(--gutter); }
