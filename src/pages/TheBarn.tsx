@@ -1,21 +1,14 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { Backdrop, TopBar, Egg, Ticker } from "../components/Shell";
+import { ITEMS, eggLevel, useHatchProgress } from "../hooks/useHatchProgress";
+import { Backdrop, TopBar, EggArt, Ticker } from "../components/Shell";
 
 /** Flip to true (or drive it from a Supabase flag) when the 72 hours begin. */
 export const BARN_UNLOCKED = false;
 
-const SLOTS = [
-  { icon: "🧰", name: "Incubator", cost: 120 },
-  { icon: "🌡️", name: "Thermometer", cost: 90 },
-  { icon: "🪹", name: "Nest", cost: 150 },
-  { icon: "💧", name: "Water", cost: 60 },
-  { icon: "💡", name: "Heat Bulb", cost: 180 },
-];
-
 export default function TheBarn() {
   const { resident } = useAuth();
-  const held = 0; // wire to resident_items once the Barn is live
+  const { owned, eggClaimed, hatchReady } = useHatchProgress(resident?.id);
 
   return (
     <div className="page">
@@ -34,38 +27,51 @@ export default function TheBarn() {
           </p>
         </div>
 
-        <div
-          className="panel"
-          style={{ display: "grid", gap: 24, gridTemplateColumns: "minmax(0,0.8fr) minmax(0,1.2fr)", alignItems: "center" }}
-        >
-          <div style={{ opacity: BARN_UNLOCKED ? 1 : 0.55 }}>
-            <Egg crack={0} />
-            <p className="center eyebrow" style={{ marginTop: 8 }}>
-              {BARN_UNLOCKED ? `@${resident?.handle}'s egg` : "Your egg is waiting"}
-            </p>
+        <div className="panel split">
+          <div style={{ opacity: eggClaimed ? 1 : 0.55 }}>
+            <EggArt
+              level={owned.size}
+              label={
+                eggClaimed
+                  ? `@${resident?.handle} · Level ${eggLevel(owned.size)}`
+                  : "Claim your egg in the Roost Event first"
+              }
+            />
           </div>
 
           <div className="stack" style={{ gap: 12 }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <span className="eyebrow">Hatch checklist</span>
-              <span className="chip">{held} / 5 collected</span>
+              <span className="chip">{owned.size} / 5 collected</span>
             </div>
 
             <div className="stack" style={{ gap: 8 }}>
-              {SLOTS.map((s) => (
-                <div className="item" key={s.name} style={{ opacity: BARN_UNLOCKED ? 1 : 0.6 }}>
-                  <span className="item-icon" aria-hidden="true">{s.icon}</span>
-                  <div>
-                    <b>{s.name}</b>
-                    <small>{s.cost} BP at the market</small>
+              {ITEMS.map((s) => {
+                const has = owned.has(s.key);
+                return (
+                  <div className={`item ${has ? "task-done" : ""}`} key={s.key}>
+                    <img
+                      src={s.image}
+                      alt=""
+                      className={has ? "" : "art-locked"}
+                      style={{ width: 32, height: 32, objectFit: "contain", flexShrink: 0 }}
+                    />
+                    <div>
+                      <b>{s.name}</b>
+                      <small>{s.price} BP at the market</small>
+                    </div>
+                    <span className="task-points">{has ? "✓" : "—"}</span>
                   </div>
-                  <span className="task-points">{BARN_UNLOCKED ? "Buy" : "🔒"}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            <button className="btn" disabled>
-              {BARN_UNLOCKED ? "Hatch your egg" : "Hatching opens with the Barn"}
+            <button className="btn" disabled={!BARN_UNLOCKED || !hatchReady}>
+              {!BARN_UNLOCKED
+                ? "Hatching opens with the Barn"
+                : hatchReady
+                ? "Hatch your egg"
+                : "Collect all five items first"}
             </button>
           </div>
         </div>
@@ -93,8 +99,8 @@ export default function TheBarn() {
         <div className="panel center stack" style={{ alignItems: "center" }}>
           <h2 className="h-md">Doors aren't open yet</h2>
           <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
-            Bank points in the Roost Event now — they carry straight into the Barn, and residents who
-            arrive with a balance start buying items on hour one.
+            Claim your egg and shop the Farmers' Market in the Roost Event now — everything you
+            collect carries straight into the Barn.
           </p>
           <Link className="btn" to="/roost-event">
             Go to the Roost Event
