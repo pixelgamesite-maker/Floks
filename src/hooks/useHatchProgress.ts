@@ -74,11 +74,16 @@ export function useHatchProgress(residentId?: string) {
   const progress = Math.min(1, spent / HATCH_TOTAL);
   const hatchReady = owned.size === ITEMS.length;
 
-  async function claimEgg() {
-    if (!residentId || eggClaimedAt) return;
+  async function claimEgg(): Promise<{ ok: boolean }> {
+    if (!residentId) return { ok: false };
+    if (eggClaimedAt) return { ok: true }; // already claimed — treat as success, not an error
+
     const now = new Date().toISOString();
     const { error } = await supabase.from("residents").update({ egg_claimed_at: now }).eq("id", residentId);
-    if (!error) setEggClaimedAt(now);
+    if (error) return { ok: false };
+
+    setEggClaimedAt(now);
+    return { ok: true };
   }
 
   // Balance is only checked client-side here — see README "Before launch" note
