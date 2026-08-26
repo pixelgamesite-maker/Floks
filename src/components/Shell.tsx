@@ -29,7 +29,9 @@ export function TopBar({ back }: { back?: { to: string; label: string } }) {
         </button>
       ) : (
         <Link to="/home" className="brand">
-          <span className="brand-mark" aria-hidden="true">🐔</span>
+          <span className="brand-mark" aria-hidden="true">
+            <img src="/Floks-logo.jpg" alt="" />
+          </span>
           Floks
         </Link>
       )}
@@ -168,24 +170,27 @@ export function Ticker() {
 }
 
 /**
- * The levelled egg. Idles quietly, wiggles roughly every 16 seconds, and pops
- * when `level` changes (the `key` forces the animation to re-trigger).
+ * The levelled egg. Idles quietly, wiggles roughly every 16 seconds, pops
+ * when `level` changes, and — when `energized` — glows and shakes faster.
+ * Landing drives `energized` from the sign-in button hover.
  */
 export function EggArt({
   level,
   size = 220,
   label,
+  energized = false,
 }: {
   level: number;
   size?: number;
   label?: string;
+  energized?: boolean;
 }) {
   const src = EGG_STAGES[Math.min(level, EGG_STAGES.length - 1)];
   return (
     <div className="egg-stage">
       <img
         key={src}
-        className="egg-img"
+        className={`egg-img ${energized ? "egg-charged" : ""}`}
         src={src}
         alt={label ?? `Egg, level ${eggLevel(level)}`}
         style={{ width: `min(${size}px, 60vw)` }}
@@ -211,46 +216,6 @@ export function ItemStrip({ owned }: { owned: Set<ItemKey> }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-export function Egg({ crack = 0 }: { crack?: number }) {
-  return (
-    <div className="egg-stage">
-      <svg className="egg" viewBox="0 0 200 250" role="img" aria-label="A speckled egg">
-        <ellipse cx="100" cy="238" rx="62" ry="10" fill="rgba(20,18,16,0.35)" />
-        <path
-          d="M100 12c46 0 78 62 78 118 0 62-35 108-78 108s-78-46-78-108C22 74 54 12 100 12Z"
-          fill="var(--shell)"
-          stroke="var(--ink)"
-          strokeWidth="6"
-        />
-        <g fill="var(--straw)" opacity="0.85">
-          <ellipse cx="66" cy="96" rx="9" ry="7" />
-          <ellipse cx="128" cy="70" rx="6" ry="5" />
-          <ellipse cx="132" cy="150" rx="10" ry="8" />
-          <ellipse cx="74" cy="176" rx="6" ry="5" />
-        </g>
-        <g
-          className="egg-crack"
-          style={{ opacity: crack, transform: `scale(${0.9 + crack * 0.1})`, transformOrigin: "100px 120px" }}
-        >
-          <path
-            d="M30 118l24-14 18 16 22-20 20 18 24-16 26 14"
-            fill="none"
-            stroke="var(--ink)"
-            strokeWidth="6"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-          <path d="M100 118v34l-14 12" fill="none" stroke="var(--ink)" strokeWidth="5" strokeLinecap="round" />
-        </g>
-        <g style={{ opacity: crack }}>
-          <circle cx="82" cy="150" r="7" fill="var(--ink)" />
-          <circle cx="118" cy="150" r="7" fill="var(--ink)" />
-          <path d="M92 172h20l-10 12z" fill="var(--beak)" stroke="var(--ink)" strokeWidth="4" strokeLinejoin="round" />
-        </g>
-      </svg>
     </div>
   );
 }
