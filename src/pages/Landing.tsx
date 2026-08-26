@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
-import { Backdrop, Egg, Ticker, XGlyph } from "../components/Shell";
+import { useAuth, captureReferral } from "../hooks/useAuth";
+import { Backdrop, EggArt, Ticker, XGlyph } from "../components/Shell";
 
 const STATS: [string, string][] = [
   ["4,900", "Supply"],
@@ -18,10 +18,14 @@ const BEATS = [
 
 export default function Landing() {
   const { signInWithX, session, loading } = useAuth();
-  const [crack, setCrack] = useState(0);
+  const [excited, setExcited] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    captureReferral();
+  }, []);
 
   useEffect(() => {
     if (!loading && session) navigate("/home", { replace: true });
@@ -30,12 +34,12 @@ export default function Landing() {
   async function enter() {
     setBusy(true);
     setError("");
-    setCrack(1);
+    setExcited(true);
     try {
       await signInWithX();
     } catch {
       setBusy(false);
-      setCrack(0);
+      setExcited(false);
       setError("X didn't hand us a session. Check your pop-up blocker and try again.");
     }
   }
@@ -44,7 +48,7 @@ export default function Landing() {
     <div className="page">
       <Backdrop />
 
-      <div className="wrap" style={{ display: "grid", gap: "clamp(24px,5vw,56px)", gridTemplateColumns: "minmax(0,1.15fr) minmax(0,0.85fr)", alignItems: "center", minHeight: "88vh" }}>
+      <div className="wrap hero-grid">
         <div className="stack">
           <span className="chip chip-live">🥚 Roost Event live</span>
 
@@ -64,10 +68,10 @@ export default function Landing() {
               className="btn"
               onClick={enter}
               disabled={busy}
-              onMouseEnter={() => !busy && setCrack(0.55)}
-              onMouseLeave={() => !busy && setCrack(0)}
-              onFocus={() => !busy && setCrack(0.55)}
-              onBlur={() => !busy && setCrack(0)}
+              onMouseEnter={() => !busy && setExcited(true)}
+              onMouseLeave={() => !busy && setExcited(false)}
+              onFocus={() => !busy && setExcited(true)}
+              onBlur={() => !busy && setExcited(false)}
             >
               <XGlyph />
               {busy ? "Opening X…" : "Continue with X"}
@@ -84,7 +88,7 @@ export default function Landing() {
           {error && <p className="notice">{error}</p>}
         </div>
 
-        <Egg crack={crack} />
+        <EggArt level={0} size={260} energized={excited} />
       </div>
 
       <Ticker />
