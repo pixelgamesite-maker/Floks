@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useSound } from "../hooks/useSound";
 import { Backdrop, TopBar, Ticker } from "../components/Shell";
 
 type Coop = {
@@ -40,7 +41,13 @@ const COOPS: Coop[] = [
 
 export default function Home() {
   const { resident } = useAuth();
+  const { play } = useSound();
   const navigate = useNavigate();
+
+  function openCoop(c: Coop) {
+    play("select");
+    navigate(c.to);
+  }
 
   return (
     <div className="page">
@@ -68,7 +75,7 @@ export default function Home() {
               <button
                 key={c.name}
                 className={`coop ${c.status === "locked" ? "coop-locked" : ""}`}
-                onClick={() => navigate(c.to)}
+                onClick={() => openCoop(c)}
                 aria-label={`${c.name} — ${c.status === "open" ? "open" : "locked"}`}
               >
                 <div className="coop-card">
