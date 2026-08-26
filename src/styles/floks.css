@@ -182,7 +182,9 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
   place-items: center;
   font-size: 1.1rem;
   box-shadow: var(--pop-sm);
+  overflow: hidden;
 }
+.brand-mark img { width: 100%; height: 100%; object-fit: cover; }
 .who { display: flex; align-items: center; gap: 10px; }
 .who img {
   width: 34px; height: 34px;
@@ -337,13 +339,15 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
   to   { transform: translateX(-50%); }
 }
 
-/* ── Egg (SVG version, used on Landing + Callback) ──── */
-.egg { width: min(260px, 60vw); animation: bob 3.4s ease-in-out infinite; }
-@keyframes bob {
-  0%, 100% { transform: translateY(0) rotate(-2deg); }
-  50%      { transform: translateY(-12px) rotate(2deg); }
+/* Hover-charge state — used on Landing while the sign-in button is focused/hovered */
+.egg-charged {
+  animation: egg-charge 0.6s ease-in-out infinite !important;
+  filter: drop-shadow(0 0 16px var(--yolk));
 }
-.egg-crack { transition: opacity 0.25s ease, transform 0.25s ease; }
+@keyframes egg-charge {
+  0%, 100% { transform: rotate(-5deg) scale(1.03); }
+  50%      { transform: rotate(5deg) scale(1.07); }
+}
 
 /* ── Egg art ────────────────────────────────────────── */
 .egg-stage { display: grid; place-items: center; padding: 10px; }
