@@ -1,127 +1,115 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth, captureReferral } from "../hooks/useAuth";
-import { Backdrop, EggArt, Ticker, XGlyph } from "../components/Shell";
+import { Link } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import { ITEMS, eggLevel, useHatchProgress } from "../hooks/useHatchProgress";
+import { Backdrop, TopBar, EggArt, Ticker } from "../components/Shell";
 
-const STATS: [string, string][] = [
-  ["4,900", "Supply"],
-  ["Robinhood", "Chain"],
-  ["OpenSea", "Launchpad"],
-  ["$YOLK", "Token"],
-];
+/** Flip to true (or drive it from a Supabase flag) when the 72 hours begin. */
+export const BARN_UNLOCKED = false;
 
-const BEATS = [
-  { k: "Sign in", d: "One tap with X. No form, no wallet drop, no allocation for bots." },
-  { k: "Contribute", d: "Chat, tasks and community work pay out Barn Points across 72 hours." },
-  { k: "Hatch", d: "Spend points on the five items, hatch your egg, keep your mint access." },
-];
-
-export default function Landing() {
-  const { signInWithX, session, loading } = useAuth();
-  const [excited, setExcited] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    captureReferral();
-  }, []);
-
-  useEffect(() => {
-    if (!loading && session) navigate("/home", { replace: true });
-  }, [loading, session, navigate]);
-
-  async function enter() {
-    setBusy(true);
-    setError("");
-    setExcited(true);
-    try {
-      await signInWithX();
-    } catch {
-      setBusy(false);
-      setExcited(false);
-      setError("X didn't hand us a session. Check your pop-up blocker and try again.");
-    }
-  }
+export default function TheBarn() {
+  const { resident } = useAuth();
+  const { owned, eggClaimed, hatchReady } = useHatchProgress(resident?.id);
 
   return (
     <div className="page">
       <Backdrop />
+      <TopBar back={{ to: "/home", label: "Coops" }} />
 
-      <div className="wrap hero-grid">
-        <div className="stack">
-          <span className="chip chip-live">🥚 Roost Event live</span>
-
-          <h1 className="h-xl" style={{ color: "var(--cream)", textShadow: "5px 5px 0 var(--ink)" }}>
-            Become a part
-            <br />
-            of the <span className="word-yolk">Barn</span>
+      <div className="wrap stack">
+        <div className="stack" style={{ gap: 12 }}>
+          <span className="chip chip-lock">🔒 Locked until the doors move</span>
+          <h1 className="h-lg" style={{ color: "var(--cream)", textShadow: "4px 4px 0 var(--ink)" }}>
+            The <span className="word-yolk">Barn</span>
           </h1>
-
           <p className="lede" style={{ color: "var(--cream)" }}>
-            Floks is 4,900 chickens on Robinhood Chain, and a 72-hour contribution system that decides
-            who mints. Whitelist forms get botted. Eggs don't hatch themselves.
+            72 hours. One egg per resident. Earn Barn Points, buy the five items at the Farmers'
+            Market, and hatch before the clock runs out. Everyone who hatches holds mint access.
           </p>
+        </div>
 
-          <div className="row">
-            <button
-              className="btn"
-              onClick={enter}
-              disabled={busy}
-              onMouseEnter={() => !busy && setExcited(true)}
-              onMouseLeave={() => !busy && setExcited(false)}
-              onFocus={() => !busy && setExcited(true)}
-              onBlur={() => !busy && setExcited(false)}
-            >
-              <XGlyph />
-              {busy ? "Opening X…" : "Continue with X"}
+        <div className="panel split">
+          <div style={{ opacity: eggClaimed ? 1 : 0.55 }}>
+            <EggArt
+              level={owned.size}
+              label={
+                eggClaimed
+                  ? `@${resident?.handle} · Level ${eggLevel(owned.size)}`
+                  : "Claim your egg in the Roost Event first"
+              }
+            />
+          </div>
+
+          <div className="stack" style={{ gap: 12 }}>
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <span className="eyebrow">Hatch checklist</span>
+              <span className="chip">{owned.size} / 5 collected</span>
+            </div>
+
+            <div className="stack" style={{ gap: 8 }}>
+              {ITEMS.map((s) => {
+                const has = owned.has(s.key);
+                return (
+                  <div className={`item ${has ? "task-done" : ""}`} key={s.key}>
+                    <img
+                      src={s.image}
+                      alt=""
+                      className={has ? "" : "art-locked"}
+                      style={{ width: 32, height: 32, objectFit: "contain", flexShrink: 0 }}
+                    />
+                    <div>
+                      <b>{s.name}</b>
+                      <small>{s.price} BP at the market</small>
+                    </div>
+                    <span className="task-points">{has ? "✓" : "—"}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button className="btn" disabled={!BARN_UNLOCKED || !hatchReady}>
+              {!BARN_UNLOCKED
+                ? "Hatching opens with the Barn"
+                : hatchReady
+                ? "Hatch your egg"
+                : "Collect all five items first"}
             </button>
-            <a className="btn btn-ink" href="#how">
-              How the Barn works
-            </a>
           </div>
-
-          <p className="eyebrow" style={{ color: "var(--cream)", opacity: 0.75 }}>
-            We read your handle and avatar. Nothing else, ever.
-          </p>
-
-          {error && <p className="notice">{error}</p>}
         </div>
 
-        <EggArt level={0} size={260} energized={excited} />
-      </div>
-
-      <Ticker />
-
-      <div className="wrap" id="how">
         <div className="panel stack">
-          <span className="eyebrow">The routine · 72 hours</span>
-          <h2 className="h-lg">Three moves, one egg</h2>
+          <span className="eyebrow">Where points come from</span>
           <div className="grid-items">
-            {BEATS.map((b) => (
-              <div key={b.k} className="item" style={{ alignItems: "flex-start", flexDirection: "column", gap: 6 }}>
-                <b style={{ fontSize: "1.15rem" }}>{b.k}</b>
-                <span style={{ fontSize: "0.9rem", lineHeight: 1.55 }}>{b.d}</span>
+            {[
+              ["💬", "Global Farmers Chat", "Show up and talk"],
+              ["🐣", "Floks tasks", "Collection-specific work"],
+              ["📣", "Social tasks", "Posts, quotes, raids"],
+              ["🤝", "Community", "Collabs and events"],
+            ].map(([i, n, d]) => (
+              <div className="item" key={n}>
+                <span className="item-icon" aria-hidden="true">{i}</span>
+                <div>
+                  <b>{n}</b>
+                  <small>{d}</small>
+                </div>
               </div>
             ))}
           </div>
+        </div>
 
-          <div className="stat-strip" style={{ marginTop: 8 }}>
-            {STATS.map(([v, l]) => (
-              <div className="stat" key={l}>
-                <b>{v}</b>
-                <span>{l}</span>
-              </div>
-            ))}
-          </div>
-
-          <p className="muted" style={{ fontSize: "0.85rem", margin: 0 }}>
-            Mint price, mint date and $YOLK timing are still TBA. Floks is a digital collectible, not
-            financial advice.
+        <div className="panel center stack" style={{ alignItems: "center" }}>
+          <h2 className="h-md">Doors aren't open yet</h2>
+          <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
+            Claim your egg and shop the Farmers' Market in the Roost Event now — everything you
+            collect carries straight into the Barn.
           </p>
+          <Link className="btn" to="/roost-event">
+            Go to the Roost Event
+          </Link>
         </div>
       </div>
 
+      <div className="spacer-lg" />
+      <Ticker />
       <div className="spacer-lg" />
     </div>
   );
