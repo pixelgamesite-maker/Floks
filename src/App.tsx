@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
-import { Backdrop, Egg } from "./components/Shell";
+import { Backdrop, EggArt } from "./components/Shell";
 
 import Landing from "./pages/Landing";
 import Callback from "./pages/Auth/callback";
@@ -19,7 +19,7 @@ function Gate({ children }: { children: React.ReactNode }) {
       <div className="page">
         <Backdrop />
         <div className="wrap center" style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
-          <Egg crack={0} />
+          <EggArt level={0} size={160} />
         </div>
       </div>
     );
