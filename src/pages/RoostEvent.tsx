@@ -85,6 +85,7 @@ export default function RoostEvent() {
   const [open, setOpen] = useState(0);
   const [claiming, setClaiming] = useState(false);
   const [showClaim, setShowClaim] = useState(false);
+  const [claimError, setClaimError] = useState("");
   const [marketMsg, setMarketMsg] = useState("");
   const [justLeveled, setJustLeveled] = useState(false);
   const clock = useCountdown(BARN_OPENS_AT);
@@ -130,10 +131,15 @@ export default function RoostEvent() {
 
   async function onClaimEgg() {
     setClaiming(true);
-    await claimEgg();
-    play("claim");
+    setClaimError("");
+    const res = await claimEgg();
     setClaiming(false);
-    setShowClaim(false);
+    if (res.ok) {
+      play("claim");
+      setShowClaim(false);
+    } else {
+      setClaimError("That didn't save — check your connection and try again.");
+    }
   }
 
   async function onBuy(item: (typeof ITEMS)[number]) {
@@ -175,6 +181,7 @@ export default function RoostEvent() {
             <button className="btn" onClick={onClaimEgg} disabled={claiming}>
               {claiming ? "Claiming…" : "Claim your egg 🥚"}
             </button>
+            {claimError && <p className="notice">{claimError}</p>}
           </div>
         </div>
       )}
