@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { SoundProvider } from "./hooks/useSound";
 import { Backdrop, EggArt } from "./components/Shell";
 
 import Landing from "./pages/Landing";
@@ -30,46 +31,48 @@ function Gate({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/callback" element={<Callback />} />
-          <Route
-            path="/home"
-            element={
-              <Gate>
-                <Home />
-              </Gate>
-            }
-          />
-          <Route
-            path="/roost-event"
-            element={
-              <Gate>
-                <RoostEvent />
-              </Gate>
-            }
-          />
-          <Route
-            path="/the-barn"
-            element={
-              <Gate>
-                <TheBarn />
-              </Gate>
-            }
-          />
-          <Route
-            path="/chicken-challenge"
-            element={
-              <Gate>
-                <ChickenChallenge />
-              </Gate>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <SoundProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/callback" element={<Callback />} />
+            <Route
+              path="/home"
+              element={
+                <Gate>
+                  <Home />
+                </Gate>
+              }
+            />
+            <Route
+              path="/roost-event"
+              element={
+                <Gate>
+                  <RoostEvent />
+                </Gate>
+              }
+            />
+            <Route
+              path="/the-barn"
+              element={
+                <Gate>
+                  <TheBarn />
+                </Gate>
+              }
+            />
+            <Route
+              path="/chicken-challenge"
+              element={
+                <Gate>
+                  <ChickenChallenge />
+                </Gate>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </SoundProvider>
   );
 }
