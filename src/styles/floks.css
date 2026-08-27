@@ -44,7 +44,10 @@ body {
 .flok-bg {
   position: fixed;
   inset: 0;
-  background: var(--cream) url("/Flok-background.png") center / cover no-repeat;
+  background-color: var(--cream);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   z-index: -2;
 }
 .flok-bg::after {
@@ -539,6 +542,63 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
 }
 .market-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .market-price { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; opacity: 0.7; }
+
+/* ── Global chat ────────────────────────────────────── */
+.chat-panel { display: flex; flex-direction: column; gap: 10px; }
+
+.chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+
+.chat-row { display: flex; gap: 10px; align-items: flex-start; }
+.chat-row-me { flex-direction: row-reverse; }
+.chat-row-me .chat-bubble { background: var(--yolk); }
+
+.chat-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  object-fit: cover;
+  background: var(--straw);
+  flex-shrink: 0;
+}
+
+.chat-bubble {
+  max-width: 72%;
+  background: var(--shell);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: var(--pop-sm);
+}
+.chat-meta {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  opacity: 0.6;
+}
+.chat-delete {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  color: var(--comb);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.5;
+}
+.chat-delete:hover { opacity: 1; }
+.chat-bubble p { margin: 2px 0 0; font-size: 0.88rem; line-height: 1.4; word-break: break-word; }
+
+.chat-input-row { display: flex; gap: 8px; }
 
 /* ── Layout helpers ─────────────────────────────────── */
 .wrap { max-width: 1080px; margin: 0 auto; padding: clamp(28px, 5vw, 60px) var(--gutter); }
