@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { ASSETS } from "../lib/assets";
 
 export type ItemKey = "nest" | "water" | "thermometer" | "heat_bulb" | "incubator";
 
@@ -13,27 +14,20 @@ export type MarketItem = {
 
 /** Prices sum to exactly 1,000 BP — that total doubles as the hatch progress denominator. */
 export const ITEMS: MarketItem[] = [
-  { key: "nest", name: "Nest", price: 100, icon: "🪹", image: "/Nest.png" },
-  { key: "water", name: "Water", price: 150, icon: "💧", image: "/Water-.png" },
-  { key: "thermometer", name: "Thermometer", price: 175, icon: "🌡️", image: "/Thermometer.png" },
-  { key: "heat_bulb", name: "Heat Bulb", price: 200, icon: "💡", image: "/Bulb.png" },
-  { key: "incubator", name: "Incubator", price: 375, icon: "🧰", image: "/Incubator.png" },
+  { key: "nest", name: "Nest", price: 100, icon: "🪹", image: ASSETS.items.nest },
+  { key: "water", name: "Water", price: 150, icon: "💧", image: ASSETS.items.water },
+  { key: "thermometer", name: "Thermometer", price: 175, icon: "🌡️", image: ASSETS.items.thermometer },
+  { key: "heat_bulb", name: "Heat Bulb", price: 200, icon: "💡", image: ASSETS.items.heat_bulb },
+  { key: "incubator", name: "Incubator", price: 375, icon: "🧰", image: ASSETS.items.incubator },
 ];
 
 export const HATCH_TOTAL = ITEMS.reduce((sum, i) => sum + i.price, 0); // 1,000
 
 /**
- * Five items, now five pieces of egg art — one level per item owned.
+ * Five items, five pieces of egg art — one level per item owned.
  * Index = number of items owned (0–5).
  */
-export const EGG_STAGES = [
-  "/Level-1-egg.png", // 0 items — just claimed
-  "/Level-1-egg.png", // 1
-  "/Level-2-egg.png", // 2
-  "/Level-3-egg.png", // 3
-  "/Level-4-egg.png", // 4
-  "/Level-5-egg.png", // 5 — ready to hatch
-];
+export const EGG_STAGES = ASSETS.eggStages;
 
 /** Which of the five art levels (1–5) an item count maps to. */
 export function eggLevel(ownedCount: number) {
