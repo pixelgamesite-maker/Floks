@@ -3,8 +3,8 @@ import { useAuth } from "../hooks/useAuth";
 import { ITEMS, eggLevel, useHatchProgress } from "../hooks/useHatchProgress";
 import { Backdrop, TopBar, EggArt, Ticker } from "../components/Shell";
 
-/** Flip to true (or drive it from a Supabase flag) when the 72 hours begin. */
-export const BARN_UNLOCKED = false;
+/** Flip to true when this next phase actually opens. */
+export const ROOST_EVENT_UNLOCKED = false;
 
 export default function TheBarn() {
   const { resident } = useAuth();
@@ -17,13 +17,13 @@ export default function TheBarn() {
 
       <div className="wrap stack">
         <div className="stack" style={{ gap: 12 }}>
-          <span className="chip chip-lock">🔒 Locked until the doors move</span>
+          <span className="chip chip-lock">🔒 Coming next</span>
           <h1 className="h-lg" style={{ color: "var(--cream)", textShadow: "4px 4px 0 var(--ink)" }}>
-            The <span className="word-yolk">Barn</span>
+            The <span className="word-yolk">Roost</span> Event
           </h1>
           <p className="lede" style={{ color: "var(--cream)" }}>
-            72 hours. One egg per resident. Earn Barn Points, buy the five items at the Farmers'
-            Market, and hatch before the clock runs out. Everyone who hatches holds mint access.
+            What's next once the Barn's contribution window wraps. Everything you earn and collect
+            there carries straight in — nothing resets.
           </p>
         </div>
 
@@ -34,14 +34,14 @@ export default function TheBarn() {
               label={
                 eggClaimed
                   ? `@${resident?.handle} · Level ${eggLevel(owned.size)}`
-                  : "Claim your egg in the Roost Event first"
+                  : "Claim your egg in The Barn first"
               }
             />
           </div>
 
           <div className="stack" style={{ gap: 12 }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <span className="eyebrow">Hatch checklist</span>
+              <span className="eyebrow">Your Barn progress</span>
               <span className="chip">{owned.size} / 5 collected</span>
             </div>
 
@@ -66,9 +66,9 @@ export default function TheBarn() {
               })}
             </div>
 
-            <button className="btn" disabled={!BARN_UNLOCKED || !hatchReady}>
-              {!BARN_UNLOCKED
-                ? "Hatching opens with the Barn"
+            <button className="btn" disabled={!ROOST_EVENT_UNLOCKED || !hatchReady}>
+              {!ROOST_EVENT_UNLOCKED
+                ? "Locked for now"
                 : hatchReady
                 ? "Hatch your egg"
                 : "Collect all five items first"}
@@ -77,7 +77,7 @@ export default function TheBarn() {
         </div>
 
         <div className="panel stack">
-          <span className="eyebrow">Where points come from</span>
+          <span className="eyebrow">Where points come from, in the Barn</span>
           <div className="grid-items">
             {[
               ["💬", "Global Farmers Chat", "Show up and talk"],
@@ -97,13 +97,13 @@ export default function TheBarn() {
         </div>
 
         <div className="panel center stack" style={{ alignItems: "center" }}>
-          <h2 className="h-md">Doors aren't open yet</h2>
+          <h2 className="h-md">Not open yet</h2>
           <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
-            Claim your egg and shop the Farmers' Market in the Roost Event now — everything you
-            collect carries straight into the Barn.
+            The Barn is where the actual work happens right now — claim your egg and shop the
+            Farmers' Market there.
           </p>
           <Link className="btn" to="/roost-event">
-            Go to the Roost Event
+            Go to The Barn
           </Link>
         </div>
       </div>
