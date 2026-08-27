@@ -4,10 +4,11 @@ import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabase";
 import { useHatchProgress, HATCH_TOTAL, EGG_STAGES, eggLevel, ITEMS, type ItemKey } from "../hooks/useHatchProgress";
 import { useSound } from "../hooks/useSound";
+import { ASSETS } from "../lib/assets";
 
-/** Fixed site background (Flok-background.png) + darkening scrim. */
+/** Fixed site background + darkening scrim. Image path lives in lib/assets.ts. */
 export function Backdrop() {
-  return <div className="flok-bg" aria-hidden="true" />;
+  return <div className="flok-bg" style={{ backgroundImage: `url("${ASSETS.background}")` }} aria-hidden="true" />;
 }
 
 export function XGlyph({ size = 16 }: { size?: number }) {
@@ -30,7 +31,7 @@ export function TopBar({ back }: { back?: { to: string; label: string } }) {
       ) : (
         <Link to="/home" className="brand">
           <span className="brand-mark" aria-hidden="true">
-            <img src="/Floks-logo.jpg" alt="" />
+            <img src={ASSETS.logo} alt="" />
           </span>
           Floks
         </Link>
