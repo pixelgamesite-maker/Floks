@@ -1,37 +1,48 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { ASSETS } from "../lib/assets";
 
 /**
- * Only two audio files needed — drop them in /public/sounds/:
+ * Only two audio files needed — paths live in lib/assets.ts:
  *
- *   select.mp3    short UI blip (the "game select" click)
- *   levelup.mp3   brighter reward chime
+ *   sounds/select.mp3    short UI blip (the "game select" click)
+ *   sounds/levelup.mp3   brighter reward chime
  *
  * Everything else is these two, pitch- and volume-shifted. No package required.
  */
 const FILES = {
-  select: "/sounds/select.mp3",
-  levelup: "/sounds/levelup.mp3",
+  select: ASSETS.sounds.select,
+  levelup: ASSETS.sounds.levelup,
 } as const;
 
 type FileKey = keyof typeof FILES;
 
-/**
- * The five things the UI asks for, mapped onto the two clips.
- * rate shifts pitch (preservesPitch is disabled below), volume shifts weight.
- */
+/** The five things the UI asks for, mapped onto the two clips. */
 const VOICES: Record<string, { file: FileKey; rate: number; volume: number }> = {
-  select: { file: "select", rate: 1.0, volume: 0.4 }, // task tap, accordion
-  purchase: { file: "select", rate: 1.25, volume: 0.5 }, // buy — same blip, brighter
-  error: { file: "select", rate: 0.72, volume: 0.32 }, // buy — same blip, dropped low
-  levelup: { file: "levelup", rate: 1.0, volume: 0.5 }, // egg levels up
-  claim: { file: "levelup", rate: 0.9, volume: 0.55 }, // egg claimed — fuller, slower
+  select: { file: "select", rate: 1.0, volume: 0.4 },
+  purchase: { file: "select", rate: 1.25, volume: 0.5 },
+  error: { file: "select", rate: 0.72, volume: 0.32 },
+  levelup: { file: "levelup", rate: 1.0, volume: 0.5 },
+  claim: { file: "levelup", rate: 0.9, volume: 0.55 },
 };
 
 export type SoundKey = keyof typeof VOICES;
 
 const MUTE_KEY = "floks_muted";
 
-export function useSound() {
+type SoundValue = {
+  play: (key: SoundKey) => void;
+  muted: boolean;
+  toggleMute: () => void;
+};
+
+const SoundContext = createContext<SoundValue | null>(null);
+
+/**
+ * Wrap the app once (in App.tsx) so every component shares one mute state.
+ * Two separate `useSound()` calls used to get two separate `muted` values —
+ * toggling it in the profile menu had no effect on sounds played elsewhere.
+ */
+export function SoundProvider({ children }: { children: ReactNode }) {
   const cache = useRef<Partial<Record<FileKey, HTMLAudioElement>>>({});
   const [muted, setMuted] = useState(false);
 
@@ -43,7 +54,6 @@ export function useSound() {
     }
   }, []);
 
-  // Warm the cache so the first click isn't silent while the file downloads.
   useEffect(() => {
     (Object.keys(FILES) as FileKey[]).forEach((key) => {
       if (cache.current[key]) return;
@@ -60,16 +70,13 @@ export function useSound() {
       const base = voice && cache.current[voice.file];
       if (!base) return;
 
-      // Clone so rapid taps overlap instead of cutting each other off.
       const node = base.cloneNode(true) as HTMLAudioElement;
       node.volume = voice.volume;
       node.playbackRate = voice.rate;
-      // Let the pitch move with the rate — that's what makes one clip read as several.
       (node as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = false;
       (node as HTMLAudioElement & { mozPreservesPitch?: boolean }).mozPreservesPitch = false;
       (node as HTMLAudioElement & { webkitPreservesPitch?: boolean }).webkitPreservesPitch = false;
 
-      // Autoplay policy rejects until the user has interacted — ignore quietly.
       node.play().catch(() => {});
     },
     [muted]
@@ -87,5 +94,11 @@ export function useSound() {
     });
   }, []);
 
-  return { play, muted, toggleMute };
+  return <SoundContext.Provider value={{ play, muted, toggleMute }}>{children}</SoundContext.Provider>;
+}
+
+export function useSound() {
+  const ctx = useContext(SoundContext);
+  if (!ctx) throw new Error("useSound must be used inside <SoundProvider>");
+  return ctx;
 }
