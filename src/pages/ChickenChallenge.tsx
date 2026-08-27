@@ -73,12 +73,12 @@ export default function ChickenChallenge() {
         </div>
 
         <div className="panel center stack" style={{ alignItems: "center" }}>
-          <h2 className="h-md">Warm up in the Roost</h2>
+          <h2 className="h-md">Warm up in the Barn</h2>
           <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
             Every point you bank now is a point you can wager here later.
           </p>
           <Link className="btn" to="/roost-event">
-            Go to the Roost Event
+            Go to The Barn
           </Link>
         </div>
       </div>
