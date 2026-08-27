@@ -5,9 +5,10 @@ import { ITEMS, HATCH_TOTAL, eggLevel, useHatchProgress } from "../hooks/useHatc
 import { useSound } from "../hooks/useSound";
 import { Backdrop, TopBar, EggArt, Ticker } from "../components/Shell";
 import { Market } from "../components/Market";
+import { GlobalChat } from "../components/GlobalChat";
 
-/** When the Barn's 72-hour routine begins. Move this and everything reflows. */
-export const BARN_OPENS_AT = new Date("2026-09-08T16:00:00Z");
+/** When this 72-hour contribution window closes. Move this and the countdown reflows. */
+export const BARN_CLOSES_AT = new Date("2026-09-08T16:00:00Z");
 
 const FLOKS_X = "https://x.com/FloksRH";
 const FLOKS_POST = "https://x.com/FloksRH/status/2090831543329517768";
@@ -88,7 +89,7 @@ export default function RoostEvent() {
   const [claimError, setClaimError] = useState("");
   const [marketMsg, setMarketMsg] = useState("");
   const [justLeveled, setJustLeveled] = useState(false);
-  const clock = useCountdown(BARN_OPENS_AT);
+  const clock = useCountdown(BARN_CLOSES_AT);
 
   // The egg pops up for claiming the moment an unclaimed resident lands here.
   useEffect(() => {
@@ -188,9 +189,9 @@ export default function RoostEvent() {
 
       <div className="wrap stack">
         <div className="stack" style={{ gap: 12 }}>
-          <span className="chip chip-live">● Roost Event live</span>
+          <span className="chip chip-live">● The Barn is live</span>
           <h1 className="h-lg" style={{ color: "var(--cream)", textShadow: "4px 4px 0 var(--ink)" }}>
-            The <span className="word-yolk">Roost</span> Event
+            The <span className="word-yolk">Barn</span>
           </h1>
           <p className="lede" style={{ color: "var(--cream)" }}>
             Claim your egg, earn Barn Points, and spend them at the Farmers' Market. Five items, five
@@ -199,7 +200,7 @@ export default function RoostEvent() {
         </div>
 
         <div className="panel stack">
-          <span className="eyebrow">The Barn opens in</span>
+          <span className="eyebrow">This window closes in</span>
           <div className="clock">
             {[
               [clock.d, "Days"],
@@ -213,7 +214,7 @@ export default function RoostEvent() {
               </div>
             ))}
           </div>
-          {clock.done && <p className="notice">Doors are open. Head to The Barn.</p>}
+          {clock.done && <p className="notice">This window has closed. Hang onto what you've earned — more details soon.</p>}
         </div>
 
         {/* ── Your egg ── */}
@@ -252,6 +253,15 @@ export default function RoostEvent() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* ── Global Farmers Chat ── */}
+        <div className="panel stack">
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span className="eyebrow">Global Farmers Chat</span>
+            <span className="chip">First message · +30 BP</span>
+          </div>
+          <GlobalChat onSent={refresh} />
         </div>
 
         {/* ── Tasks (below the egg) ── */}
