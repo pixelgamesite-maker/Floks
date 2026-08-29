@@ -158,6 +158,7 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
     setSending(false);
 
     if (err) {
+      console.error("chat send failed:", err);
       if (err.message.includes("muted")) setError("You're temporarily muted from chat.");
       else if (err.message.includes("Links")) setError("Links aren't allowed in chat.");
       else if (err.message.includes("not allowed")) setError("That message isn't allowed here.");
