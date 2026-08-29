@@ -8,9 +8,6 @@ import { Market } from "../components/Market";
 import { GamblingArena } from "../components/GamblingArena";
 import { VoteCard } from "../components/VoteCard";
 
-/** When wallet/WL submission closes. Matches the Day 3 afternoon window below. */
-export const BARN_CLOSES_AT = new Date("2026-08-31T20:00:00Z");
-
 const FLOKS_X = "https://x.com/FloksRH";
 const FLOKS_POST = "https://x.com/FloksRH/status/2090831543329517768";
 
@@ -34,21 +31,17 @@ type DayTask = {
   closes_at: string | null;
 };
 
-function useCountdown(target: Date) {
+/** Just a ticking clock — day-task windows are checked against this, but
+ * there's no fixed "everything closes at X" date anymore. That's a manual
+ * call (flip each task's `active` to false in task_catalog when you're
+ * ready), not a timer. */
+function useNow() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  const ms = Math.max(0, target.getTime() - now);
-  return {
-    now,
-    done: ms === 0,
-    d: Math.floor(ms / 86400000),
-    h: Math.floor(ms / 3600000) % 24,
-    m: Math.floor(ms / 60000) % 60,
-    s: Math.floor(ms / 1000) % 60,
-  };
+  return now;
 }
 
 export default function RoostEvent() {
@@ -66,7 +59,7 @@ export default function RoostEvent() {
   const [dayTasks, setDayTasks] = useState<DayTask[]>([]);
   const [wlClaiming, setWlClaiming] = useState(false);
   const [wlError, setWlError] = useState("");
-  const clock = useCountdown(BARN_CLOSES_AT);
+  const now = useNow();
 
   useEffect(() => {
     if (!loading && !eggClaimed) setShowClaim(true);
@@ -101,9 +94,9 @@ export default function RoostEvent() {
       dayTasks.filter((t) => {
         const opens = t.opens_at ? new Date(t.opens_at).getTime() : -Infinity;
         const closes = t.closes_at ? new Date(t.closes_at).getTime() : Infinity;
-        return clock.now >= opens && clock.now <= closes;
+        return now >= opens && now <= closes;
       }),
-    [dayTasks, clock.now]
+    [dayTasks, now]
   );
 
   const tasksEarned = useMemo(
@@ -215,19 +208,6 @@ export default function RoostEvent() {
             Claim your egg, earn Barn Points, and spend them at the Farmers' Market. Collect all
             five items and claim your WL spot.
           </p>
-        </div>
-
-        <div className="panel stack">
-          <span className="eyebrow">Wallet submission closes in</span>
-          <div className="clock">
-            {[[clock.d, "Days"], [clock.h, "Hours"], [clock.m, "Mins"], [clock.s, "Secs"]].map(([v, l]) => (
-              <div className="clock-cell" key={l as string}>
-                <b>{String(v).padStart(2, "0")}</b>
-                <span>{l}</span>
-              </div>
-            ))}
-          </div>
-          {clock.done && <p className="notice">Submission has closed.</p>}
         </div>
 
         {/* ── Your egg ── */}
