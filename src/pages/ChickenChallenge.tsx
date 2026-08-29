@@ -20,7 +20,7 @@ export default function ChickenChallenge() {
   return (
     <div className="page">
       <Backdrop />
-      <TopBar back={{ to: "/home", label: "Coops" }} />
+      <TopBar back={{ to: "/roost-event", label: "The Barn" }} />
 
       <div className="wrap stack">
         <div className="stack" style={{ gap: 12 }}>
