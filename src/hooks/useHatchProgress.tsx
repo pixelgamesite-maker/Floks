@@ -46,7 +46,7 @@ type HatchValue = {
   wlClaimed: boolean;
   loading: boolean;
   refresh: () => Promise<void>;
-  claimEgg: () => Promise<{ ok: boolean }>;
+  claimEgg: () => Promise<{ ok: boolean; error?: string }>;
   claimWl: () => Promise<{ ok: boolean; error?: string }>;
   buy: (item: MarketItem) => Promise<PurchaseResult>;
 };
@@ -104,13 +104,18 @@ export function HatchProvider({ children }: { children: ReactNode }) {
   const progress = Math.min(1, spent / HATCH_TOTAL);
   const hatchReady = owned.size === ITEMS.length;
 
-  async function claimEgg(): Promise<{ ok: boolean }> {
-    if (!residentId) return { ok: false };
+  async function claimEgg(): Promise<{ ok: boolean; error?: string }> {
+    if (!residentId) return { ok: false, error: "Still loading your profile — wait a moment and try again." };
     if (eggClaimedAt) return { ok: true };
 
     const now = new Date().toISOString();
     const { error } = await supabase.from("residents").update({ egg_claimed_at: now }).eq("id", residentId);
-    if (error) return { ok: false };
+    if (error) {
+      // Logged so the real Postgres error is visible in devtools even though
+      // the UI only shows a friendly version of it.
+      console.error("claimEgg failed:", error);
+      return { ok: false, error: error.message };
+    }
 
     setEggClaimedAt(now);
     return { ok: true };
