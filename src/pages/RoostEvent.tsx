@@ -59,6 +59,7 @@ export default function RoostEvent() {
 
   const [taskDone, setTaskDone] = useState<Record<string, boolean>>({});
   const [claiming, setClaiming] = useState(false);
+  const [claimErr, setClaimErr] = useState("");
   const [showClaim, setShowClaim] = useState(false);
   const [marketMsg, setMarketMsg] = useState("");
   const [justLeveled, setJustLeveled] = useState(false);
@@ -141,11 +142,14 @@ export default function RoostEvent() {
 
   async function onClaimEgg() {
     setClaiming(true);
+    setClaimErr("");
     const res = await claimEgg();
     setClaiming(false);
     if (res.ok) {
       play("claim");
       setShowClaim(false);
+    } else {
+      setClaimErr(res.error ?? "That didn't go through — try again.");
     }
   }
 
@@ -196,6 +200,7 @@ export default function RoostEvent() {
             <button className="btn" onClick={onClaimEgg} disabled={claiming}>
               {claiming ? "Claiming…" : "Claim your egg 🥚"}
             </button>
+            {claimErr && <p className="notice">{claimErr}</p>}
           </div>
         </div>
       )}
