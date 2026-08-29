@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "./useAuth";
 import { ASSETS } from "../lib/assets";
 
 export type ItemKey = "nest" | "water" | "thermometer" | "heat_bulb" | "incubator";
@@ -12,34 +13,61 @@ export type MarketItem = {
   image: string;
 };
 
-/** Prices sum to exactly 1,000 BP — that total doubles as the hatch progress denominator. */
+/** Prices match the current spec. Total is 1,500 — below the 2,500 BP cap on
+ * purpose, leaving room to gamble or keep earning after a full hatch. */
 export const ITEMS: MarketItem[] = [
   { key: "nest", name: "Nest", price: 100, icon: "🪹", image: ASSETS.items.nest },
   { key: "water", name: "Water", price: 150, icon: "💧", image: ASSETS.items.water },
-  { key: "thermometer", name: "Thermometer", price: 175, icon: "🌡️", image: ASSETS.items.thermometer },
-  { key: "heat_bulb", name: "Heat Bulb", price: 200, icon: "💡", image: ASSETS.items.heat_bulb },
-  { key: "incubator", name: "Incubator", price: 375, icon: "🧰", image: ASSETS.items.incubator },
+  { key: "thermometer", name: "Thermometer", price: 350, icon: "🌡️", image: ASSETS.items.thermometer },
+  { key: "heat_bulb", name: "Bulb", price: 300, icon: "💡", image: ASSETS.items.heat_bulb },
+  { key: "incubator", name: "Incubator", price: 600, icon: "🧰", image: ASSETS.items.incubator },
 ];
 
-export const HATCH_TOTAL = ITEMS.reduce((sum, i) => sum + i.price, 0); // 1,000
+export const HATCH_TOTAL = ITEMS.reduce((sum, i) => sum + i.price, 0); // 1,500
 
-/**
- * Five items, five pieces of egg art — one level per item owned.
- * Index = number of items owned (0–5).
- */
+/** Five items, five pieces of egg art — one level per item owned. */
 export const EGG_STAGES = ASSETS.eggStages;
 
-/** Which of the five art levels (1–5) an item count maps to. */
 export function eggLevel(ownedCount: number) {
   return Math.max(1, Math.min(5, ownedCount === 0 ? 1 : ownedCount));
 }
 
 type PurchaseResult = { ok: true } | { ok: false; reason: "owned" | "short" | "error" };
 
-export function useHatchProgress(residentId?: string) {
-  const [earned, setEarned] = useState(0);
+type HatchValue = {
+  earned: number;
+  spent: number;
+  balance: number;
+  owned: Set<ItemKey>;
+  progress: number;
+  hatchReady: boolean;
+  cap: number;
+  eggClaimed: boolean;
+  wlClaimed: boolean;
+  loading: boolean;
+  refresh: () => Promise<void>;
+  claimEgg: () => Promise<{ ok: boolean }>;
+  claimWl: () => Promise<{ ok: boolean; error?: string }>;
+  buy: (item: MarketItem) => Promise<PurchaseResult>;
+};
+
+const HatchContext = createContext<HatchValue | null>(null);
+
+/**
+ * Wrap the authenticated part of the app once (App.tsx). Every consumer —
+ * the profile menu, the market, the floating chat widget, the gambling
+ * arena — reads and mutates the same state, so a chat message sent from
+ * one page updates the BP chip shown on a completely different one.
+ */
+export function HatchProvider({ children }: { children: ReactNode }) {
+  const { resident } = useAuth();
+  const residentId = resident?.id;
+
+  const [balance, setBalance] = useState(0);
   const [owned, setOwned] = useState<Set<ItemKey>>(new Set());
   const [eggClaimedAt, setEggClaimedAt] = useState<string | null>(null);
+  const [wlClaimedAt, setWlClaimedAt] = useState<string | null>(null);
+  const [cap, setCap] = useState(2500);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -48,14 +76,22 @@ export function useHatchProgress(residentId?: string) {
       return;
     }
     setLoading(true);
-    const [{ data: tasks }, { data: items }, { data: resident }] = await Promise.all([
-      supabase.from("resident_tasks").select("points").eq("resident_id", residentId),
+
+    // Balance comes from the authoritative barn_balance() RPC — the one
+    // place tasks, referrals, chat, gambling, and spending are all summed,
+    // so this always matches what the cap/purchase guards see server-side.
+    const [{ data: bal }, { data: items }, { data: res }, { data: config }] = await Promise.all([
+      supabase.rpc("barn_balance", { target: residentId }),
       supabase.from("resident_items").select("item_key").eq("resident_id", residentId),
-      supabase.from("residents").select("egg_claimed_at").eq("id", residentId).maybeSingle(),
+      supabase.from("residents").select("egg_claimed_at, wl_claimed_at").eq("id", residentId).maybeSingle(),
+      supabase.from("app_config").select("value").eq("key", "bp_cap").maybeSingle(),
     ]);
-    setEarned((tasks ?? []).reduce((sum, t) => sum + t.points, 0));
+
+    setBalance(typeof bal === "number" ? bal : 0);
     setOwned(new Set((items ?? []).map((i) => i.item_key as ItemKey)));
-    setEggClaimedAt(resident?.egg_claimed_at ?? null);
+    setEggClaimedAt(res?.egg_claimed_at ?? null);
+    setWlClaimedAt(res?.wl_claimed_at ?? null);
+    if (config?.value) setCap(config.value);
     setLoading(false);
   }, [residentId]);
 
@@ -64,13 +100,13 @@ export function useHatchProgress(residentId?: string) {
   }, [refresh]);
 
   const spent = ITEMS.filter((i) => owned.has(i.key)).reduce((sum, i) => sum + i.price, 0);
-  const balance = earned - spent;
+  const earned = balance + spent;
   const progress = Math.min(1, spent / HATCH_TOTAL);
   const hatchReady = owned.size === ITEMS.length;
 
   async function claimEgg(): Promise<{ ok: boolean }> {
     if (!residentId) return { ok: false };
-    if (eggClaimedAt) return { ok: true }; // already claimed — treat as success, not an error
+    if (eggClaimedAt) return { ok: true };
 
     const now = new Date().toISOString();
     const { error } = await supabase.from("residents").update({ egg_claimed_at: now }).eq("id", residentId);
@@ -80,8 +116,19 @@ export function useHatchProgress(residentId?: string) {
     return { ok: true };
   }
 
-  // Balance is only checked client-side here — see README "Before launch" note
-  // on moving this into a Postgres function before real BP is on the line.
+  async function claimWl(): Promise<{ ok: boolean; error?: string }> {
+    if (!residentId) return { ok: false };
+    if (wlClaimedAt) return { ok: true };
+    if (!hatchReady) return { ok: false, error: "Collect all five items first." };
+
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("residents").update({ wl_claimed_at: now }).eq("id", residentId);
+    if (error) return { ok: false, error: error.message };
+
+    setWlClaimedAt(now);
+    return { ok: true };
+  }
+
   async function buy(item: MarketItem): Promise<PurchaseResult> {
     if (!residentId) return { ok: false, reason: "error" };
     if (owned.has(item.key)) return { ok: false, reason: "owned" };
@@ -93,20 +140,32 @@ export function useHatchProgress(residentId?: string) {
 
     if (error) return { ok: false, reason: "error" };
     setOwned((prev) => new Set(prev).add(item.key));
+    setBalance((b) => b - item.price);
     return { ok: true };
   }
 
-  return {
+  const value: HatchValue = {
     earned,
     spent,
     balance,
     owned,
     progress,
     hatchReady,
+    cap,
     eggClaimed: !!eggClaimedAt,
+    wlClaimed: !!wlClaimedAt,
     loading,
     refresh,
     claimEgg,
+    claimWl,
     buy,
   };
+
+  return <HatchContext.Provider value={value}>{children}</HatchContext.Provider>;
+}
+
+export function useHatchProgress() {
+  const ctx = useContext(HatchContext);
+  if (!ctx) throw new Error("useHatchProgress must be used inside <HatchProvider>");
+  return ctx;
 }
