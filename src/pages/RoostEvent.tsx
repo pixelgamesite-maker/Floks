@@ -241,16 +241,23 @@ export default function RoostEvent() {
         {hatchReady && (
           <div className="panel stack center" style={{ alignItems: "center" }}>
             <span className="eyebrow">Final step</span>
-            <h2 className="h-md">{wlClaimed ? "Your WL spot is claimed 🎉" : "Claim your WL spot"}</h2>
-            {wlClaimed ? (
+            <h2 className="h-md">
+              {wlClaimed && walletAddress
+                ? "Your WL spot is claimed 🎉"
+                : wlClaimed
+                ? "One more thing — submit your wallet"
+                : "Claim your WL spot"}
+            </h2>
+            {wlClaimed && walletAddress ? (
               <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.82rem", margin: 0 }}>
                 {walletAddress}
               </p>
             ) : (
               <>
                 <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
-                  All five items collected. Submit the EVM wallet you want your spot tied to — once
-                  claimed, it's locked in and can't be changed.
+                  {wlClaimed
+                    ? "Your spot is already claimed — we just need the wallet to tie it to. Submit it below, it locks in immediately."
+                    : "All five items collected. Submit the EVM wallet you want your spot tied to — once claimed, it's locked in and can't be changed."}
                 </p>
                 <input
                   className="ref-input"
@@ -265,7 +272,7 @@ export default function RoostEvent() {
                   onClick={onClaimWl}
                   disabled={wlClaiming || !/^0x[0-9a-fA-F]{40}$/.test(walletInput.trim())}
                 >
-                  {wlClaiming ? "Claiming…" : "Claim WL spot"}
+                  {wlClaiming ? "Submitting…" : wlClaimed ? "Submit wallet" : "Claim WL spot"}
                 </button>
                 {wlError && <p className="notice">{wlError}</p>}
               </>
