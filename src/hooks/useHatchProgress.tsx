@@ -126,13 +126,27 @@ export function HatchProvider({ children }: { children: ReactNode }) {
 
   async function claimWl(wallet: string): Promise<{ ok: boolean; error?: string }> {
     if (!residentId) return { ok: false, error: "Still loading your profile — wait a moment and try again." };
-    if (wlClaimedAt) return { ok: true };
-    if (!hatchReady) return { ok: false, error: "Collect all five items first." };
 
     const trimmed = wallet.trim();
     if (!/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
       return { ok: false, error: "That doesn't look like a valid EVM address (0x + 40 hex characters)." };
     }
+
+    // Backfill path: this resident already claimed WL before wallet
+    // collection existed, so wl_claimed_at is set but wallet_address isn't.
+    // Submit just the wallet, don't touch wl_claimed_at at all.
+    if (wlClaimedAt) {
+      if (walletAddress) return { ok: true };
+      const { error } = await supabase.from("residents").update({ wallet_address: trimmed }).eq("id", residentId);
+      if (error) {
+        console.error("claimWl (wallet-only backfill) failed:", error);
+        return { ok: false, error: error.message };
+      }
+      setWalletAddress(trimmed);
+      return { ok: true };
+    }
+
+    if (!hatchReady) return { ok: false, error: "Collect all five items first." };
 
     const now = new Date().toISOString();
     const { error } = await supabase
