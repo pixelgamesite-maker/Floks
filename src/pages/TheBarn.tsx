@@ -8,12 +8,12 @@ export const ROOST_EVENT_UNLOCKED = false;
 
 export default function TheBarn() {
   const { resident } = useAuth();
-  const { owned, eggClaimed, hatchReady } = useHatchProgress(resident?.id);
+  const { owned, eggClaimed, hatchReady } = useHatchProgress();
 
   return (
     <div className="page">
       <Backdrop />
-      <TopBar back={{ to: "/home", label: "Coops" }} />
+      <TopBar back={{ to: "/roost-event", label: "The Barn" }} />
 
       <div className="wrap stack">
         <div className="stack" style={{ gap: 12 }}>
