@@ -29,7 +29,7 @@ export default function Callback() {
 
       const { data } = await supabase.auth.getSession();
       if (!alive) return;
-      if (data.session) navigate("/home", { replace: true });
+      if (data.session) navigate("/roost-event", { replace: true });
       else setError("No session came back from X. Try signing in once more.");
     }
 
