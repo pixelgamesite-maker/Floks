@@ -9,18 +9,11 @@ import { GamblingArena } from "../components/GamblingArena";
 import { VoteCard } from "../components/VoteCard";
 
 const FLOKS_X = "https://x.com/FloksRH";
-const FLOKS_POST = "https://x.com/FloksRH/status/2090831543329517768";
 
-/** One-time entry task, called out on its own above the repeatable social set. */
+/** One-time entry task, called out on its own above the day-gated set. */
 const FOLLOW_TASK = { key: "follow", label: "Follow @FloksRH on X", hint: "One-time · unlocks the rest", points: 100, href: FLOKS_X };
 
-const SOCIAL_TASKS = [
-  { key: "like", label: "Like the Floks post", points: 25, href: FLOKS_POST },
-  { key: "comment", label: "Comment on the Floks post", points: 50, href: FLOKS_POST },
-  { key: "retweet", label: "Retweet the Floks post", points: 25, href: FLOKS_POST },
-];
-
-const ALL_STATIC_TASKS = [FOLLOW_TASK, ...SOCIAL_TASKS];
+const ALL_STATIC_TASKS = [FOLLOW_TASK];
 
 type DayTask = {
   key: string;
@@ -46,7 +39,7 @@ function useNow() {
 
 export default function RoostEvent() {
   const { resident } = useAuth();
-  const { earned, spent, balance, owned, hatchReady, cap, eggClaimed, wlClaimed, loading, refresh, claimEgg, claimWl, buy } =
+  const { earned, spent, balance, owned, hatchReady, cap, eggClaimed, wlClaimed, walletAddress, loading, refresh, claimEgg, claimWl, buy } =
     useHatchProgress();
   const { play } = useSound();
 
@@ -59,6 +52,7 @@ export default function RoostEvent() {
   const [dayTasks, setDayTasks] = useState<DayTask[]>([]);
   const [wlClaiming, setWlClaiming] = useState(false);
   const [wlError, setWlError] = useState("");
+  const [walletInput, setWalletInput] = useState("");
   const now = useNow();
 
   useEffect(() => {
@@ -149,7 +143,7 @@ export default function RoostEvent() {
   async function onClaimWl() {
     setWlClaiming(true);
     setWlError("");
-    const res = await claimWl();
+    const res = await claimWl(walletInput);
     setWlClaiming(false);
     if (res.ok) play("levelup");
     else setWlError(res.error ?? "That didn't go through — try again.");
@@ -248,12 +242,29 @@ export default function RoostEvent() {
           <div className="panel stack center" style={{ alignItems: "center" }}>
             <span className="eyebrow">Final step</span>
             <h2 className="h-md">{wlClaimed ? "Your WL spot is claimed 🎉" : "Claim your WL spot"}</h2>
-            {!wlClaimed && (
+            {wlClaimed ? (
+              <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.82rem", margin: 0 }}>
+                {walletAddress}
+              </p>
+            ) : (
               <>
                 <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
-                  All five items collected. This is the last step — once claimed, it can't be undone.
+                  All five items collected. Submit the EVM wallet you want your spot tied to — once
+                  claimed, it's locked in and can't be changed.
                 </p>
-                <button className="btn" onClick={onClaimWl} disabled={wlClaiming}>
+                <input
+                  className="ref-input"
+                  style={{ width: "min(420px, 100%)", textAlign: "center" }}
+                  placeholder="0x..."
+                  value={walletInput}
+                  onChange={(e) => setWalletInput(e.target.value)}
+                  disabled={wlClaiming}
+                />
+                <button
+                  className="btn"
+                  onClick={onClaimWl}
+                  disabled={wlClaiming || !/^0x[0-9a-fA-F]{40}$/.test(walletInput.trim())}
+                >
                   {wlClaiming ? "Claiming…" : "Claim WL spot"}
                 </button>
                 {wlError && <p className="notice">{wlError}</p>}
@@ -278,17 +289,11 @@ export default function RoostEvent() {
             <span className="task-points">+{FOLLOW_TASK.points} BP</span>
           </button>
 
-          <span className="eyebrow" style={{ marginTop: 4 }}>Social tasks</span>
-          <div className="stack" style={{ gap: 10 }}>
-            {SOCIAL_TASKS.map((t) => (
-              <button key={t.key} className={`task ${taskDone[t.key] ? "task-done" : ""}`} onClick={() => claimTask(t)} disabled={taskDone[t.key] || !followDone}>
-                <span className="task-box">{taskDone[t.key] ? "✓" : ""}</span>
-                <span>{t.label}</span>
-                <span className="task-points">+{t.points} BP</span>
-              </button>
-            ))}
-          </div>
-          {!followDone && <p className="muted" style={{ fontSize: "0.82rem", margin: 0 }}>Follow first — the social tasks unlock right after.</p>}
+          {!followDone && (
+            <p className="muted" style={{ fontSize: "0.82rem", margin: 0 }}>
+              Follow first — today's tasks unlock right after.
+            </p>
+          )}
 
           {openDayTasks.length > 0 && (
             <>
