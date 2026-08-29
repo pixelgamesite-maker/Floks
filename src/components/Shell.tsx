@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import { useHatchProgress, HATCH_TOTAL, EGG_STAGES, eggLevel, ITEMS, type ItemKey } from "../hooks/useHatchProgress";
 import { useSound } from "../hooks/useSound";
 import { ASSETS } from "../lib/assets";
+import { HamburgerMenu } from "./HamburgerMenu";
 
 /** Fixed site background + darkening scrim. Image path lives in lib/assets.ts. */
 export function Backdrop() {
@@ -24,18 +25,21 @@ export function TopBar({ back }: { back?: { to: string; label: string } }) {
 
   return (
     <header className="topbar">
-      {back ? (
-        <button className="btn btn-ghost btn-sm" onClick={() => navigate(back.to)}>
-          ← {back.label}
-        </button>
-      ) : (
-        <Link to="/home" className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            <img src={ASSETS.logo} alt="" />
-          </span>
-          Floks
-        </Link>
-      )}
+      <div className="row" style={{ gap: 10 }}>
+        <HamburgerMenu />
+        {back ? (
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate(back.to)}>
+            ← {back.label}
+          </button>
+        ) : (
+          <Link to="/roost-event" className="brand">
+            <span className="brand-mark" aria-hidden="true">
+              <img src={ASSETS.logo} alt="" />
+            </span>
+            Floks
+          </Link>
+        )}
+      </div>
       <ProfileMenu />
     </header>
   );
@@ -43,7 +47,7 @@ export function TopBar({ back }: { back?: { to: string; label: string } }) {
 
 function ProfileMenu() {
   const { resident, signOut } = useAuth();
-  const { spent, balance, owned, progress, hatchReady } = useHatchProgress(resident?.id);
+  const { spent, balance, owned, progress, hatchReady } = useHatchProgress();
   const { muted, toggleMute } = useSound();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
