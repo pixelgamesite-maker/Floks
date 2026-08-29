@@ -1,7 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { SoundProvider } from "./hooks/useSound";
+import { HatchProvider, useHatchProgress } from "./hooks/useHatchProgress";
 import { Backdrop, EggArt } from "./components/Shell";
+import { ChatWidget } from "./components/ChatWidget";
 
 import Landing from "./pages/Landing";
 import Callback from "./pages/Auth/callback";
@@ -29,49 +31,73 @@ function Gate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * Routes + the floating chat widget, as siblings. Mounting ChatWidget here
+ * (rather than inside each page) means it survives navigation between
+ * gated pages instead of closing and refetching history on every route
+ * change — a resident mid-conversation doesn't lose it by tapping to the
+ * market and back.
+ */
+function AppShell() {
+  const { session } = useAuth();
+  const { refresh } = useHatchProgress();
+
+  return (
+    <>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/callback" element={<Callback />} />
+        <Route
+          path="/home"
+          element={
+            <Gate>
+              <Home />
+            </Gate>
+          }
+        />
+        <Route
+          path="/roost-event"
+          element={
+            <Gate>
+              <RoostEvent />
+            </Gate>
+          }
+        />
+        <Route
+          path="/the-barn"
+          element={
+            <Gate>
+              <TheBarn />
+            </Gate>
+          }
+        />
+        <Route
+          path="/chicken-challenge"
+          element={
+            <Gate>
+              <ChickenChallenge />
+            </Gate>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
+      {session && <ChatWidget onSent={refresh} />}
+    </>
+  );
+}
+
 export default function App() {
   return (
     <SoundProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/callback" element={<Callback />} />
-            <Route
-              path="/home"
-              element={
-                <Gate>
-                  <Home />
-                </Gate>
-              }
-            />
-            <Route
-              path="/roost-event"
-              element={
-                <Gate>
-                  <RoostEvent />
-                </Gate>
-              }
-            />
-            <Route
-              path="/the-barn"
-              element={
-                <Gate>
-                  <TheBarn />
-                </Gate>
-              }
-            />
-            <Route
-              path="/chicken-challenge"
-              element={
-                <Gate>
-                  <ChickenChallenge />
-                </Gate>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
+        {/* HatchProvider needs useAuth() internally, so it must nest inside
+            AuthProvider — order here isn't cosmetic. */}
+        <HatchProvider>
+          <BrowserRouter>
+            <AppShell />
+          </BrowserRouter>
+        </HatchProvider>
       </AuthProvider>
     </SoundProvider>
   );
