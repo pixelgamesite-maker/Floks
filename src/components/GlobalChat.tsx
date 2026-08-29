@@ -5,13 +5,13 @@ import { useSound } from "../hooks/useSound";
 
 const MAX_LEN = 240;
 const HISTORY_LIMIT = 50;
+const LINK_PATTERN = /(https?:\/\/|www\.)/i;
 
 type ChatRow = {
   id: number;
   resident_id: string;
   body: string;
   created_at: string;
-  // joined from residents — see the select() below
   residents: { handle: string; avatar_url: string } | null;
 };
 
@@ -25,9 +25,10 @@ function timeAgo(iso: string) {
 
 /**
  * The Global Farmers Chat. Loads the last 50 messages, then subscribes to
- * Realtime for anything new. Rate limiting (3s between sends per resident)
- * is enforced server-side by a trigger — see supabase/schema.sql — so this
- * component's cooldown is UX only, not the actual guard.
+ * Realtime for anything new or deleted. Every message earns BP up to the
+ * cap — that reward is granted server-side (grant_chat_reward in
+ * schema.sql), not by anything in this component, so onSent just tells the
+ * parent to re-pull its balance.
  */
 export function GlobalChat({ onSent }: { onSent?: () => void }) {
   const { resident } = useAuth();
@@ -37,8 +38,23 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [cooldown, setCooldown] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(10);
+  const [pointsPerMessage, setPointsPerMessage] = useState(3);
   const [isAdmin, setIsAdmin] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase
+      .from("app_config")
+      .select("key, value")
+      .in("key", ["chat_cooldown_seconds", "chat_message_points"])
+      .then(({ data }) => {
+        for (const row of data ?? []) {
+          if (row.key === "chat_cooldown_seconds") setCooldownSeconds(row.value);
+          if (row.key === "chat_message_points") setPointsPerMessage(row.value);
+        }
+      });
+  }, []);
 
   useEffect(() => {
     if (!resident) return;
@@ -69,8 +85,6 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages" },
         async (payload) => {
-          // Realtime payloads don't include joined tables, so fetch the sender's
-          // profile fields separately for this one row.
           const { data: sender } = await supabase
             .from("residents")
             .select("handle, avatar_url")
@@ -113,17 +127,21 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
     const body = draft.trim();
     if (!body || !resident || sending || cooldown) return;
 
+    if (LINK_PATTERN.test(body)) {
+      setError("Links aren't allowed in chat.");
+      return;
+    }
+
     setSending(true);
     setError("");
     const { error: err } = await supabase.from("chat_messages").insert({ resident_id: resident.id, body });
     setSending(false);
 
     if (err) {
-      // The DB trigger raises one of three specific messages — surface
-      // whichever it was instead of a generic "try again."
       if (err.message.includes("muted")) setError("You're temporarily muted from chat.");
+      else if (err.message.includes("Links")) setError("Links aren't allowed in chat.");
       else if (err.message.includes("not allowed")) setError("That message isn't allowed here.");
-      else if (err.message.includes("Slow down")) setError("Slow down — one message every few seconds.");
+      else if (err.message.includes("Slow down")) setError(`Slow down — one message every ${cooldownSeconds}s.`);
       else setError("That didn't send — try again.");
       return;
     }
@@ -131,26 +149,22 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
     setDraft("");
     play("select");
     setCooldown(true);
-    setTimeout(() => setCooldown(false), 3000);
-
-    // First message ever earns the "chat" task. Points come from the DB
-    // catalog trigger, not this call — ignoreDuplicates means a second
-    // message is a silent no-op, so this can't be farmed by spamming.
-    const { error: taskErr } = await supabase
-      .from("resident_tasks")
-      .upsert({ resident_id: resident.id, task_key: "chat", points: 0 }, { onConflict: "resident_id,task_key", ignoreDuplicates: true });
-    if (!taskErr) onSent?.();
+    setTimeout(() => setCooldown(false), cooldownSeconds * 1000);
+    onSent?.();
   }
 
   async function deleteMessage(id: number) {
-    // Optimistic — the DELETE realtime event will also fire and is a no-op
-    // if this local removal already happened.
     setMessages((prev) => prev.filter((m) => m.id !== id));
     await supabase.rpc("admin_delete_message", { msg_id: id });
   }
 
   return (
     <div className="chat-panel">
+      <p className="muted" style={{ margin: "0 0 6px", fontSize: "0.72rem" }}>
+        +{pointsPerMessage} BP per message (until you hit the cap) · no links · one message every{" "}
+        {cooldownSeconds}s
+      </p>
+
       <div className="chat-list" ref={listRef}>
         {messages.length === 0 && <p className="muted center" style={{ margin: "20px 0" }}>Nobody's said gYolk yet — be first.</p>}
         {messages.map((m) => (
