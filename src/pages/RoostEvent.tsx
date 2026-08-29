@@ -5,22 +5,17 @@ import { ITEMS, HATCH_TOTAL, eggLevel, useHatchProgress } from "../hooks/useHatc
 import { useSound } from "../hooks/useSound";
 import { Backdrop, TopBar, EggArt, Ticker } from "../components/Shell";
 import { Market } from "../components/Market";
-import { GlobalChat } from "../components/GlobalChat";
+import { GamblingArena } from "../components/GamblingArena";
+import { VoteCard } from "../components/VoteCard";
 
-/** When this 72-hour contribution window closes. Move this and the countdown reflows. */
-export const BARN_CLOSES_AT = new Date("2026-09-08T16:00:00Z");
+/** When wallet/WL submission closes. Matches the Day 3 afternoon window below. */
+export const BARN_CLOSES_AT = new Date("2026-08-31T20:00:00Z");
 
 const FLOKS_X = "https://x.com/FloksRH";
 const FLOKS_POST = "https://x.com/FloksRH/status/2090831543329517768";
 
 /** One-time entry task, called out on its own above the repeatable social set. */
-const FOLLOW_TASK = {
-  key: "follow",
-  label: "Follow @FloksRH on X",
-  hint: "One-time · unlocks the rest",
-  points: 100,
-  href: FLOKS_X,
-};
+const FOLLOW_TASK = { key: "follow", label: "Follow @FloksRH on X", hint: "One-time · unlocks the rest", points: 100, href: FLOKS_X };
 
 const SOCIAL_TASKS = [
   { key: "like", label: "Like the Floks post", points: 25, href: FLOKS_POST },
@@ -28,37 +23,16 @@ const SOCIAL_TASKS = [
   { key: "retweet", label: "Retweet the Floks post", points: 25, href: FLOKS_POST },
 ];
 
-const ALL_TASKS = [FOLLOW_TASK, ...SOCIAL_TASKS];
+const ALL_STATIC_TASKS = [FOLLOW_TASK, ...SOCIAL_TASKS];
 
-const CHAPTERS = [
-  {
-    title: "The problem with WL",
-    body: "Whitelist is how you reach the mint, and right now it's the weakest link on Robinhood Chain. Forms are ineffective. Applications get botted. Allocations come out lopsided. Twenty thousand bots can drop a wallet and walk away with a spot.",
-  },
-  {
-    title: "So the Barn asks for work",
-    body: "72 hours of contribution instead of a form. Sign in with X, arrive at the Barn, and you're handed your own egg. Your job is to hatch it — which means collecting everything a hatch needs first.",
-  },
-  {
-    title: "Points, then items",
-    body: "Barn Points come from the Global Farmers Chat, social tasks, Floks-specific tasks, community activities, and whatever else the Flock cooks up. Spend them at the Farmers' Market on the five items. Every item you buy levels up your egg.",
-  },
-  {
-    title: "Hatch, then mint",
-    body: "Complete the hatch and you hold access to the mint. That's the whole deal — no lottery, no clout check, no screenshot of a form submission.",
-  },
-  {
-    title: "Collaborations",
-    body: "Six communities from Ethereum and Robinhood will join the Flock. We answer DMs. Requirements aren't size or clout, they're eagerness to be part of it. Nothing decided yet.",
-  },
-];
-
-const FACTS: [string, string][] = [
-  ["4,900", "Total supply"],
-  ["Robinhood", "Chain"],
-  ["TBA", "Mint price"],
-  ["OpenSea", "Launchpad"],
-];
+type DayTask = {
+  key: string;
+  label: string;
+  points: number;
+  href: string | null;
+  opens_at: string | null;
+  closes_at: string | null;
+};
 
 function useCountdown(target: Date) {
   const [now, setNow] = useState(() => Date.now());
@@ -68,6 +42,7 @@ function useCountdown(target: Date) {
   }, []);
   const ms = Math.max(0, target.getTime() - now);
   return {
+    now,
     done: ms === 0,
     d: Math.floor(ms / 86400000),
     h: Math.floor(ms / 3600000) % 24,
@@ -78,20 +53,20 @@ function useCountdown(target: Date) {
 
 export default function RoostEvent() {
   const { resident } = useAuth();
-  const { earned, spent, balance, owned, hatchReady, eggClaimed, loading, refresh, claimEgg, buy } =
-    useHatchProgress(resident?.id);
+  const { earned, spent, balance, owned, hatchReady, cap, eggClaimed, wlClaimed, loading, refresh, claimEgg, claimWl, buy } =
+    useHatchProgress();
   const { play } = useSound();
 
   const [taskDone, setTaskDone] = useState<Record<string, boolean>>({});
-  const [open, setOpen] = useState(0);
   const [claiming, setClaiming] = useState(false);
   const [showClaim, setShowClaim] = useState(false);
-  const [claimError, setClaimError] = useState("");
   const [marketMsg, setMarketMsg] = useState("");
   const [justLeveled, setJustLeveled] = useState(false);
+  const [dayTasks, setDayTasks] = useState<DayTask[]>([]);
+  const [wlClaiming, setWlClaiming] = useState(false);
+  const [wlError, setWlError] = useState("");
   const clock = useCountdown(BARN_CLOSES_AT);
 
-  // The egg pops up for claiming the moment an unclaimed resident lands here.
   useEffect(() => {
     if (!loading && !eggClaimed) setShowClaim(true);
   }, [loading, eggClaimed]);
@@ -107,40 +82,80 @@ export default function RoostEvent() {
       });
   }, [resident]);
 
+  // Day-gated tasks: fetched once, filtered live against the ticking clock
+  // below so a window opening/closing updates the list without a refresh.
+  // The DB is still the real gate — resident_tasks_guard rejects a claim
+  // outside the window even if this list is stale for a moment.
+  useEffect(() => {
+    supabase
+      .from("task_catalog")
+      .select("key, label, points, href, opens_at, closes_at, active")
+      .like("key", "day%")
+      .eq("active", true)
+      .then(({ data }) => setDayTasks((data ?? []) as DayTask[]));
+  }, []);
+
+  const openDayTasks = useMemo(
+    () =>
+      dayTasks.filter((t) => {
+        const opens = t.opens_at ? new Date(t.opens_at).getTime() : -Infinity;
+        const closes = t.closes_at ? new Date(t.closes_at).getTime() : Infinity;
+        return clock.now >= opens && clock.now <= closes;
+      }),
+    [dayTasks, clock.now]
+  );
+
   const tasksEarned = useMemo(
-    () => ALL_TASKS.filter((t) => taskDone[t.key]).reduce((sum, t) => sum + t.points, 0),
-    [taskDone]
+    () =>
+      [...ALL_STATIC_TASKS, ...dayTasks]
+        .filter((t) => taskDone[t.key])
+        .reduce((sum, t) => sum + t.points, 0),
+    [taskDone, dayTasks]
   );
 
   const followDone = !!taskDone[FOLLOW_TASK.key];
   const level = owned.size;
 
-  // NOTE: marks the task optimistically — see README before launch.
-  async function claimTask(task: (typeof ALL_TASKS)[number]) {
+  // NOTE: marks the task optimistically once the DB confirms it — actual
+  // point value and cap enforcement happen server-side in
+  // resident_tasks_guard, not here. Before launch, the *completion* itself
+  // (did they really follow/quote/etc) still needs a verifying edge
+  // function — this can currently be claimed by clicking, honestly.
+  async function claimTask(task: { key: string; label: string; points: number; href: string | null }) {
     if (taskDone[task.key] || !resident) return;
     play("select");
     if (task.href) window.open(task.href, "_blank", "noopener");
-    setTaskDone((d) => ({ ...d, [task.key]: true }));
-    await supabase
+
+    const { error } = await supabase
       .from("resident_tasks")
-      .upsert(
-        { resident_id: resident.id, task_key: task.key, points: task.points },
-        { onConflict: "resident_id,task_key" }
-      );
+      .upsert({ resident_id: resident.id, task_key: task.key, points: task.points }, { onConflict: "resident_id,task_key" });
+
+    if (error) {
+      setMarketMsg(error.message.includes("cap") ? `You're at the ${cap} BP cap — spend some at the market first.` : "That task didn't go through — try again.");
+      return;
+    }
+
+    setTaskDone((d) => ({ ...d, [task.key]: true }));
     refresh();
   }
 
   async function onClaimEgg() {
     setClaiming(true);
-    setClaimError("");
     const res = await claimEgg();
     setClaiming(false);
     if (res.ok) {
       play("claim");
       setShowClaim(false);
-    } else {
-      setClaimError("That didn't save — check your connection and try again.");
     }
+  }
+
+  async function onClaimWl() {
+    setWlClaiming(true);
+    setWlError("");
+    const res = await claimWl();
+    setWlClaiming(false);
+    if (res.ok) play("levelup");
+    else setWlError(res.error ?? "That didn't go through — try again.");
   }
 
   async function onBuy(item: (typeof ITEMS)[number]) {
@@ -166,9 +181,8 @@ export default function RoostEvent() {
   return (
     <div className="page">
       <Backdrop />
-      <TopBar back={{ to: "/home", label: "Coops" }} />
+      <TopBar />
 
-      {/* ── Egg claim popup ── */}
       {showClaim && !eggClaimed && (
         <div className="modal-scrim">
           <div className="modal-card panel stack center">
@@ -176,13 +190,12 @@ export default function RoostEvent() {
             <EggArt level={0} size={200} />
             <h2 className="h-md">A Level 1 Egg</h2>
             <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.95rem", maxWidth: "34ch" }}>
-              One per resident, free. Claim it and it stays on your Roost — every item you buy at the
+              One per resident, free. Claim it and it stays with you — every item you buy at the
               Farmers' Market levels it up.
             </p>
             <button className="btn" onClick={onClaimEgg} disabled={claiming}>
               {claiming ? "Claiming…" : "Claim your egg 🥚"}
             </button>
-            {claimError && <p className="notice">{claimError}</p>}
           </div>
         </div>
       )}
@@ -194,27 +207,22 @@ export default function RoostEvent() {
             The <span className="word-yolk">Barn</span>
           </h1>
           <p className="lede" style={{ color: "var(--cream)" }}>
-            Claim your egg, earn Barn Points, and spend them at the Farmers' Market. Five items, five
-            levels of egg, one hatch.
+            Claim your egg, earn Barn Points, and spend them at the Farmers' Market. Collect all
+            five items and claim your WL spot.
           </p>
         </div>
 
         <div className="panel stack">
-          <span className="eyebrow">This window closes in</span>
+          <span className="eyebrow">Wallet submission closes in</span>
           <div className="clock">
-            {[
-              [clock.d, "Days"],
-              [clock.h, "Hours"],
-              [clock.m, "Mins"],
-              [clock.s, "Secs"],
-            ].map(([v, l]) => (
+            {[[clock.d, "Days"], [clock.h, "Hours"], [clock.m, "Mins"], [clock.s, "Secs"]].map(([v, l]) => (
               <div className="clock-cell" key={l as string}>
                 <b>{String(v).padStart(2, "0")}</b>
                 <span>{l}</span>
               </div>
             ))}
           </div>
-          {clock.done && <p className="notice">This window has closed. Hang onto what you've earned — more details soon.</p>}
+          {clock.done && <p className="notice">Submission has closed.</p>}
         </div>
 
         {/* ── Your egg ── */}
@@ -226,26 +234,21 @@ export default function RoostEvent() {
               <EggArt level={0} label="Unclaimed" />
             )}
           </div>
-
           <div className="stack" style={{ gap: 10 }}>
             <span className="eyebrow">Your egg</span>
             <h2 className="h-md">
-              {!eggClaimed
-                ? "Waiting to be claimed"
-                : hatchReady
-                ? "Ready to hatch"
-                : `Level ${eggLevel(level)} and growing`}
+              {!eggClaimed ? "Waiting to be claimed" : hatchReady ? "Ready to hatch" : `Level ${eggLevel(level)} and growing`}
             </h2>
             <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.95rem" }}>
               {!eggClaimed
                 ? "Claim it above to open the Farmers' Market."
                 : hatchReady
-                ? "All five items collected. The hatch itself opens with the Barn."
-                : "Each item you buy levels the egg up. Five items takes it to the top."}
+                ? "All five items collected — claim your WL spot below."
+                : "Each item you buy levels the egg up."}
             </p>
             <div className="row">
               <span className="chip">{spent}/{HATCH_TOTAL} BP toward hatch</span>
-              <span className="chip">{balance} BP to spend</span>
+              <span className="chip">{balance}/{cap} BP</span>
             </div>
             {!eggClaimed && (
               <button className="btn" onClick={() => setShowClaim(true)}>
@@ -255,33 +258,36 @@ export default function RoostEvent() {
           </div>
         </div>
 
-        {/* ── Global Farmers Chat ── */}
-        <div className="panel stack">
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <span className="eyebrow">Global Farmers Chat</span>
-            <span className="chip">First message · +30 BP</span>
+        {/* ── WL claim ── */}
+        {hatchReady && (
+          <div className="panel stack center" style={{ alignItems: "center" }}>
+            <span className="eyebrow">Final step</span>
+            <h2 className="h-md">{wlClaimed ? "Your WL spot is claimed 🎉" : "Claim your WL spot"}</h2>
+            {!wlClaimed && (
+              <>
+                <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
+                  All five items collected. This is the last step — once claimed, it can't be undone.
+                </p>
+                <button className="btn" onClick={onClaimWl} disabled={wlClaiming}>
+                  {wlClaiming ? "Claiming…" : "Claim WL spot"}
+                </button>
+                {wlError && <p className="notice">{wlError}</p>}
+              </>
+            )}
           </div>
-          <GlobalChat onSent={refresh} />
-        </div>
+        )}
 
-        {/* ── Tasks (below the egg) ── */}
+        {/* ── Tasks ── */}
         <div className="panel stack">
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span className="eyebrow">Tasks</span>
             <span className="chip">{tasksEarned} BP banked</span>
           </div>
 
-          {/* One-time entry task */}
-          <button
-            className={`task task-hero ${followDone ? "task-done" : ""}`}
-            onClick={() => claimTask(FOLLOW_TASK)}
-            disabled={followDone}
-          >
+          <button className={`task task-hero ${followDone ? "task-done" : ""}`} onClick={() => claimTask(FOLLOW_TASK)} disabled={followDone}>
             <span className="task-box">{followDone ? "✓" : "𝕏"}</span>
             <span>
-              <b style={{ fontFamily: "var(--display)", fontSize: "1.05rem", display: "block" }}>
-                {FOLLOW_TASK.label}
-              </b>
+              <b style={{ fontFamily: "var(--display)", fontSize: "1.05rem", display: "block" }}>{FOLLOW_TASK.label}</b>
               <small className="muted" style={{ fontSize: "0.72rem" }}>{FOLLOW_TASK.hint}</small>
             </span>
             <span className="task-points">+{FOLLOW_TASK.points} BP</span>
@@ -290,23 +296,30 @@ export default function RoostEvent() {
           <span className="eyebrow" style={{ marginTop: 4 }}>Social tasks</span>
           <div className="stack" style={{ gap: 10 }}>
             {SOCIAL_TASKS.map((t) => (
-              <button
-                key={t.key}
-                className={`task ${taskDone[t.key] ? "task-done" : ""}`}
-                onClick={() => claimTask(t)}
-                disabled={taskDone[t.key] || !followDone}
-              >
+              <button key={t.key} className={`task ${taskDone[t.key] ? "task-done" : ""}`} onClick={() => claimTask(t)} disabled={taskDone[t.key] || !followDone}>
                 <span className="task-box">{taskDone[t.key] ? "✓" : ""}</span>
                 <span>{t.label}</span>
                 <span className="task-points">+{t.points} BP</span>
               </button>
             ))}
           </div>
-          {!followDone && (
-            <p className="muted" style={{ fontSize: "0.82rem", margin: 0 }}>
-              Follow first — the social tasks unlock right after.
-            </p>
+          {!followDone && <p className="muted" style={{ fontSize: "0.82rem", margin: 0 }}>Follow first — the social tasks unlock right after.</p>}
+
+          {openDayTasks.length > 0 && (
+            <>
+              <span className="eyebrow" style={{ marginTop: 8 }}>Today's tasks</span>
+              <div className="stack" style={{ gap: 10 }}>
+                {openDayTasks.map((t) => (
+                  <button key={t.key} className={`task ${taskDone[t.key] ? "task-done" : ""}`} onClick={() => claimTask(t)} disabled={taskDone[t.key]}>
+                    <span className="task-box">{taskDone[t.key] ? "✓" : ""}</span>
+                    <span>{t.label}</span>
+                    <span className="task-points">+{t.points} BP</span>
+                  </button>
+                ))}
+              </div>
+            </>
           )}
+          {marketMsg && <p className="notice">{marketMsg}</p>}
         </div>
 
         {/* ── Farmers' Market ── */}
@@ -315,53 +328,14 @@ export default function RoostEvent() {
             <span className="eyebrow">Farmers' Market</span>
             <span className="chip">{balance} BP to spend</span>
           </div>
-          <Market
-            eggClaimed={eggClaimed}
-            owned={owned}
-            balance={balance}
-            earned={earned}
-            spent={spent}
-            message={marketMsg}
-            onBuy={onBuy}
-          />
+          <Market eggClaimed={eggClaimed} owned={owned} balance={balance} earned={earned} spent={spent} message={marketMsg} onBuy={onBuy} />
         </div>
 
-        {/* ── Briefing ── */}
-        <div className="panel stack">
-          <span className="eyebrow">The briefing</span>
-          <div className="stack" style={{ gap: 10 }}>
-            {CHAPTERS.map((c, i) => (
-              <div key={c.title} style={{ border: "3px solid var(--ink)", borderRadius: 14, overflow: "hidden" }}>
-                <button
-                  className="task"
-                  style={{ border: 0, borderRadius: 0, boxShadow: "none", background: open === i ? "var(--yolk)" : "var(--shell)" }}
-                  onClick={() => {
-                    play("select");
-                    setOpen(open === i ? -1 : i);
-                  }}
-                  aria-expanded={open === i}
-                >
-                  <span className="task-box">{open === i ? "–" : "+"}</span>
-                  <b style={{ fontFamily: "var(--display)", fontSize: "1.05rem" }}>{c.title}</b>
-                </button>
-                {open === i && (
-                  <p style={{ margin: 0, padding: "6px 18px 18px", lineHeight: 1.65, fontSize: "0.95rem" }}>
-                    {c.body}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* ── Special task: vote ── */}
+        {eggClaimed && <VoteCard onVoted={refresh} />}
 
-        <div className="stat-strip">
-          {FACTS.map(([v, l]) => (
-            <div className="stat" key={l}>
-              <b>{v}</b>
-              <span>{l}</span>
-            </div>
-          ))}
-        </div>
+        {/* ── Gambling Arena ── */}
+        {eggClaimed && <GamblingArena balance={balance} onResolved={refresh} />}
       </div>
 
       <div className="spacer-lg" />
