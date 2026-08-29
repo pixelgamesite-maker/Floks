@@ -44,10 +44,11 @@ type HatchValue = {
   cap: number;
   eggClaimed: boolean;
   wlClaimed: boolean;
+  walletAddress: string | null;
   loading: boolean;
   refresh: () => Promise<void>;
   claimEgg: () => Promise<{ ok: boolean; error?: string }>;
-  claimWl: () => Promise<{ ok: boolean; error?: string }>;
+  claimWl: (wallet: string) => Promise<{ ok: boolean; error?: string }>;
   buy: (item: MarketItem) => Promise<PurchaseResult>;
 };
 
@@ -67,6 +68,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
   const [owned, setOwned] = useState<Set<ItemKey>>(new Set());
   const [eggClaimedAt, setEggClaimedAt] = useState<string | null>(null);
   const [wlClaimedAt, setWlClaimedAt] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [cap, setCap] = useState(2500);
   const [loading, setLoading] = useState(true);
 
@@ -83,7 +85,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     const [{ data: bal }, { data: items }, { data: res }, { data: config }] = await Promise.all([
       supabase.rpc("barn_balance", { target: residentId }),
       supabase.from("resident_items").select("item_key").eq("resident_id", residentId),
-      supabase.from("residents").select("egg_claimed_at, wl_claimed_at").eq("id", residentId).maybeSingle(),
+      supabase.from("residents").select("egg_claimed_at, wl_claimed_at, wallet_address").eq("id", residentId).maybeSingle(),
       supabase.from("app_config").select("value").eq("key", "bp_cap").maybeSingle(),
     ]);
 
@@ -91,6 +93,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     setOwned(new Set((items ?? []).map((i) => i.item_key as ItemKey)));
     setEggClaimedAt(res?.egg_claimed_at ?? null);
     setWlClaimedAt(res?.wl_claimed_at ?? null);
+    setWalletAddress(res?.wallet_address ?? null);
     if (config?.value) setCap(config.value);
     setLoading(false);
   }, [residentId]);
@@ -121,16 +124,28 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }
 
-  async function claimWl(): Promise<{ ok: boolean; error?: string }> {
-    if (!residentId) return { ok: false };
+  async function claimWl(wallet: string): Promise<{ ok: boolean; error?: string }> {
+    if (!residentId) return { ok: false, error: "Still loading your profile — wait a moment and try again." };
     if (wlClaimedAt) return { ok: true };
     if (!hatchReady) return { ok: false, error: "Collect all five items first." };
 
+    const trimmed = wallet.trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
+      return { ok: false, error: "That doesn't look like a valid EVM address (0x + 40 hex characters)." };
+    }
+
     const now = new Date().toISOString();
-    const { error } = await supabase.from("residents").update({ wl_claimed_at: now }).eq("id", residentId);
-    if (error) return { ok: false, error: error.message };
+    const { error } = await supabase
+      .from("residents")
+      .update({ wl_claimed_at: now, wallet_address: trimmed })
+      .eq("id", residentId);
+    if (error) {
+      console.error("claimWl failed:", error);
+      return { ok: false, error: error.message };
+    }
 
     setWlClaimedAt(now);
+    setWalletAddress(trimmed);
     return { ok: true };
   }
 
@@ -159,6 +174,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     cap,
     eggClaimed: !!eggClaimedAt,
     wlClaimed: !!wlClaimedAt,
+    walletAddress,
     loading,
     refresh,
     claimEgg,
