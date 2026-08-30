@@ -6,7 +6,6 @@ const FAQ = [
   { q: "How many communities get spots?", a: "Ten partner communities, claiming 1,000+ spots between them." },
   { q: "What's the BP cap?", a: "2,500 BP per resident. Once you hit it, tasks and referrals stop adding until you spend some at the market." },
   { q: "Can I gamble more than once?", a: "No — Double or Nothing in the Gambling Arena is a one-time shot per resident." },
-  { q: "Is this financial advice?", a: "No. Floks is a digital collectible. Do your own research." },
 ];
 
 export function HamburgerMenu() {
