@@ -3,12 +3,13 @@ import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabase";
 import { ITEMS, HATCH_TOTAL, eggLevel, useHatchProgress } from "../hooks/useHatchProgress";
 import { useSound } from "../hooks/useSound";
-import { Backdrop, TopBar, EggArt, Ticker } from "../components/Shell";
+import { Backdrop, TopBar, EggArt, Ticker, XGlyph } from "../components/Shell";
 import { Market } from "../components/Market";
 import { GamblingArena } from "../components/GamblingArena";
 import { VoteCard } from "../components/VoteCard";
 
 const FLOKS_X = "https://x.com/FloksRH";
+const SHARE_TEXT = "I just secured my spot on the @FloksRH Barn 🐔\n\nJoin here → https://floks.fun";
 
 /** One-time entry task, called out on its own above the day-gated set. */
 const FOLLOW_TASK = { key: "follow", label: "Follow @FloksRH on X", hint: "One-time · unlocks the rest", points: 100, href: FLOKS_X };
@@ -204,81 +205,87 @@ export default function RoostEvent() {
           </p>
         </div>
 
-        {/* ── Your egg ── */}
-        <div className="panel split">
-          <div className={justLeveled ? "egg-levelup" : ""}>
-            {eggClaimed ? (
-              <EggArt level={level} label={`Level ${eggLevel(level)} · ${level}/5 items`} />
-            ) : (
-              <EggArt level={0} label="Unclaimed" />
-            )}
-          </div>
-          <div className="stack" style={{ gap: 10 }}>
-            <span className="eyebrow">Your egg</span>
-            <h2 className="h-md">
-              {!eggClaimed ? "Waiting to be claimed" : hatchReady ? "Ready to hatch" : `Level ${eggLevel(level)} and growing`}
-            </h2>
-            <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.95rem" }}>
-              {!eggClaimed
-                ? "Claim it above to open the Farmers' Market."
-                : hatchReady
-                ? "All five items collected — claim your WL spot below."
-                : "Each item you buy levels the egg up."}
-            </p>
-            <div className="row">
-              <span className="chip">{spent}/{HATCH_TOTAL} BP toward hatch</span>
-              <span className="chip">{balance}/{cap} BP</span>
-            </div>
-            {!eggClaimed && (
-              <button className="btn" onClick={() => setShowClaim(true)}>
-                Claim your egg 🥚
-              </button>
-            )}
-          </div>
-        </div>
+        {/* ── Your egg, or — once fully hatched — congrats + WL claim ── */}
+        <div className={`panel ${hatchReady ? "stack center" : "split"}`} style={hatchReady ? { alignItems: "center" } : undefined}>
+          {hatchReady ? (
+            <>
+              <span className="eyebrow">Final step</span>
+              <h2 className="h-md">
+                {wlClaimed && walletAddress
+                  ? "Your WL spot is claimed 🎉"
+                  : wlClaimed
+                  ? "One more thing — submit your wallet"
+                  : "🎉 Congratulations — your egg has hatched!"}
+              </h2>
 
-        {/* ── WL claim ── */}
-        {hatchReady && (
-          <div className="panel stack center" style={{ alignItems: "center" }}>
-            <span className="eyebrow">Final step</span>
-            <h2 className="h-md">
-              {wlClaimed && walletAddress
-                ? "Your WL spot is claimed 🎉"
-                : wlClaimed
-                ? "One more thing — submit your wallet"
-                : "Claim your WL spot"}
-            </h2>
-            {wlClaimed && walletAddress ? (
-              <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.82rem", margin: 0 }}>
-                {walletAddress}
-              </p>
-            ) : (
-              <>
-                <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
-                  {wlClaimed
-                    ? "Your spot is already claimed — we just need the wallet to tie it to. Submit it below, it locks in immediately."
-                    : "All five items collected. Submit the EVM wallet you want your spot tied to — once claimed, it's locked in and can't be changed."}
+              {wlClaimed && walletAddress ? (
+                <>
+                  <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.82rem", margin: 0 }}>
+                    {walletAddress}
+                  </p>
+                  <a
+                    className="btn"
+                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <XGlyph /> Share on X
+                  </a>
+                </>
+              ) : (
+                <>
+                  <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
+                    {wlClaimed
+                      ? "Your spot is already claimed — we just need the wallet to tie it to. Submit it below, it locks in immediately."
+                      : "All five items collected. Submit the EVM wallet you want your spot tied to — once claimed, it's locked in and can't be changed."}
+                  </p>
+                  <input
+                    className="ref-input"
+                    style={{ width: "min(420px, 100%)", textAlign: "center" }}
+                    placeholder="0x..."
+                    value={walletInput}
+                    onChange={(e) => setWalletInput(e.target.value)}
+                    disabled={wlClaiming}
+                  />
+                  <button
+                    className="btn"
+                    onClick={onClaimWl}
+                    disabled={wlClaiming || !/^0x[0-9a-fA-F]{40}$/.test(walletInput.trim())}
+                  >
+                    {wlClaiming ? "Submitting…" : wlClaimed ? "Submit wallet" : "Claim WL spot"}
+                  </button>
+                  {wlError && <p className="notice">{wlError}</p>}
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <div className={justLeveled ? "egg-levelup" : ""}>
+                {eggClaimed ? (
+                  <EggArt level={level} label={`Level ${eggLevel(level)} · ${level}/5 items`} />
+                ) : (
+                  <EggArt level={0} label="Unclaimed" />
+                )}
+              </div>
+              <div className="stack" style={{ gap: 10 }}>
+                <span className="eyebrow">Your egg</span>
+                <h2 className="h-md">{!eggClaimed ? "Waiting to be claimed" : `Level ${eggLevel(level)} and growing`}</h2>
+                <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.95rem" }}>
+                  {!eggClaimed ? "Claim it above to open the Farmers' Market." : "Each item you buy levels the egg up."}
                 </p>
-                <input
-                  className="ref-input"
-                  style={{ width: "min(420px, 100%)", textAlign: "center" }}
-                  placeholder="0x..."
-                  value={walletInput}
-                  onChange={(e) => setWalletInput(e.target.value)}
-                  disabled={wlClaiming}
-                />
-                <button
-                  className="btn"
-                  onClick={onClaimWl}
-                  disabled={wlClaiming || !/^0x[0-9a-fA-F]{40}$/.test(walletInput.trim())}
-                >
-                  {wlClaiming ? "Submitting…" : wlClaimed ? "Submit wallet" : "Claim WL spot"}
-                </button>
-                {wlError && <p className="notice">{wlError}</p>}
-              </>
-            )}
-          </div>
-        )}
+                <div className="row">
+                  <span className="chip">{spent}/{HATCH_TOTAL} BP toward hatch</span>
+                  <span className="chip">{balance}/{cap} BP</span>
+                </div>
+                {!eggClaimed && (
+                  <button className="btn" onClick={() => setShowClaim(true)}>
+                    Claim your egg 🥚
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         {/* ── Tasks ── */}
         <div className="panel stack">
