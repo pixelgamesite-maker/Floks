@@ -214,24 +214,14 @@ export default function RoostEvent() {
                 {wlClaimed && walletAddress
                   ? "Your WL spot is claimed 🎉"
                   : wlClaimed
-                  ? "One more thing — submit your wallet"
+                  ? "One more thing, submit your wallet"
                   : "🎉 Congratulations — your egg has hatched!"}
               </h2>
 
               {wlClaimed && walletAddress ? (
-                <>
-                  <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.82rem", margin: 0 }}>
-                    {walletAddress}
-                  </p>
-                  <a
-                    className="btn"
-                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <XGlyph /> Share on X
-                  </a>
-                </>
+                <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.82rem", margin: 0 }}>
+                  {walletAddress}
+                </p>
               ) : (
                 <>
                   <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
@@ -257,6 +247,15 @@ export default function RoostEvent() {
                   {wlError && <p className="notice">{wlError}</p>}
                 </>
               )}
+
+              <a
+                className="btn btn-ink"
+                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <XGlyph /> Share on X
+              </a>
             </>
           ) : (
             <>
