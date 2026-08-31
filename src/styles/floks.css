@@ -149,6 +149,21 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
 .chip-lock  { background: var(--straw); }
 .chip-soon  { background: var(--beak); }
 
+/* A chip that must never wrap or grow past its row — used for the "gifted
+   by @handle" badge in chat, which used to reflow into a multi-line blob
+   because .chip has no white-space rule of its own. Uppercase + wide
+   letter-spacing (inherited from .chip) also made handles read wider than
+   they needed to, so both are turned off here. */
+.gift-badge {
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 0.6rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 /* ── Header ─────────────────────────────────────────── */
 .topbar {
   position: sticky;
