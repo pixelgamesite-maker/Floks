@@ -47,7 +47,7 @@ export function VoteCard({ onVoted }: { onVoted?: () => void }) {
     setVoting(false);
 
     if (err) {
-      setError("That didn't go through — try again.");
+      setError("That didn't go through, try again.");
       return;
     }
     setMyChoice(choice);
@@ -67,7 +67,7 @@ export function VoteCard({ onVoted }: { onVoted?: () => void }) {
       <h2 className="h-md">Instant reveal, or wait 24 hours?</h2>
       <p style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.55 }}>
         {myChoice
-          ? "Your vote is locked in — here's how the Flock is leaning so far."
+          ? "Your vote is locked in, here's how the Flock is leaning so far."
           : "Pick one. Can't be changed once cast."}
       </p>
 
