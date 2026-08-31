@@ -41,7 +41,7 @@ function useNow() {
 
 export default function RoostEvent() {
   const { resident } = useAuth();
-  const { earned, spent, balance, owned, hatchReady, cap, eggClaimed, wlClaimed, walletAddress, nftNumber, loading, refresh, claimEgg, claimWl, claimNft, buy } =
+  const { earned, spent, balance, owned, hatchReady, cap, eggClaimed, wlClaimed, walletAddress, nftNumber, loading, refresh, claimEgg, claimWl, buy } =
     useHatchProgress();
   const { play } = useSound();
 
@@ -56,21 +56,19 @@ export default function RoostEvent() {
   const [wlError, setWlError] = useState("");
   const [walletInput, setWalletInput] = useState("");
   const [showWalletModal, setShowWalletModal] = useState(false);
-  const [showNftPopup, setShowNftPopup] = useState(false);
-  const [nftClaiming, setNftClaiming] = useState(false);
-  const [nftClaimErr, setNftClaimErr] = useState("");
   const now = useNow();
 
   useEffect(() => {
     if (!loading && !eggClaimed) setShowClaim(true);
   }, [loading, eggClaimed]);
 
-  // Auto-prompt the NFT claim the moment hatchReady is true, if it hasn't
-  // been claimed yet. Only ever flips this true, never false — dismissal
-  // happens by the user clicking OK inside the popup itself.
+  // Auto-prompt the wallet/WL claim the moment hatchReady is true and it
+  // isn't fully done yet (covers a fresh claim and every backfill state —
+  // WL claimed but no wallet, or wallet set but no NFT number somehow).
+  // Only ever flips this true, never false — closing happens by the user.
   useEffect(() => {
-    if (!loading && hatchReady && !nftNumber) setShowNftPopup(true);
-  }, [loading, hatchReady, nftNumber]);
+    if (!loading && hatchReady && !(wlClaimed && walletAddress && nftNumber)) setShowWalletModal(true);
+  }, [loading, hatchReady, wlClaimed, walletAddress, nftNumber]);
 
   useEffect(() => {
     if (!resident) return;
@@ -86,12 +84,14 @@ export default function RoostEvent() {
   // Day-gated tasks: fetched once, filtered live against the ticking clock
   // below so a window opening/closing updates the list without a refresh.
   // The DB is still the real gate — resident_tasks_guard rejects a claim
-  // outside the window even if this list is stale for a moment.
+  // outside any opens_at/closes_at window even if this list is stale for a
+  // moment. No key-naming convention required — any active row here except
+  // follow/vote_reveal (each shown elsewhere) just shows up.
   useEffect(() => {
     supabase
       .from("task_catalog")
       .select("key, label, points, href, opens_at, closes_at, active")
-      .like("key", "day%")
+      .not("key", "in", "(follow,vote_reveal)")
       .eq("active", true)
       .then(({ data }) => setDayTasks((data ?? []) as DayTask[]));
   }, []);
@@ -156,19 +156,10 @@ export default function RoostEvent() {
   async function onClaimWl() {
     setWlClaiming(true);
     setWlError("");
-    const res = await claimWl(walletInput);
+    const res = await claimWl(walletInput || walletAddress || "");
     setWlClaiming(false);
     if (res.ok) play("levelup");
     else setWlError(res.error ?? "That didn't go through — try again.");
-  }
-
-  async function onClaimNft() {
-    setNftClaiming(true);
-    setNftClaimErr("");
-    const res = await claimNft();
-    setNftClaiming(false);
-    if (res.ok) play("levelup");
-    else setNftClaimErr(res.error ?? "That didn't go through — try again.");
   }
 
   async function onBuy(item: (typeof ITEMS)[number]) {
@@ -214,10 +205,13 @@ export default function RoostEvent() {
         </div>
       )}
 
-      {showNftPopup && hatchReady && (
-        <div className="modal-scrim">
+      {showWalletModal && (
+        <div
+          className="modal-scrim"
+          onClick={(e) => e.target === e.currentTarget && !wlClaiming && setShowWalletModal(false)}
+        >
           <div className="modal-card panel stack center">
-            {nftNumber ? (
+            {wlClaimed && walletAddress && nftNumber ? (
               <>
                 <span className="eyebrow">Congratulations</span>
                 <h2 className="h-md">Floks #{nftNumber} is yours 🎉</h2>
@@ -226,54 +220,34 @@ export default function RoostEvent() {
                   alt={`Floks #${nftNumber}`}
                   style={{ width: "min(240px, 60vw)", borderRadius: 16, border: "3px solid var(--ink)", boxShadow: "var(--pop)" }}
                 />
-                <button className="btn" onClick={() => setShowNftPopup(false)}>
-                  OK
-                </button>
-              </>
-            ) : (
-              <>
-                <span className="eyebrow">Your egg has hatched</span>
-                <h2 className="h-md">Claim your Floks NFT</h2>
-                <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.95rem", maxWidth: "34ch" }}>
-                  You'll be assigned one of 2,000 numbered pieces — random, permanent, yours the
-                  moment you claim it.
-                </p>
-                <button className="btn" onClick={onClaimNft} disabled={nftClaiming}>
-                  {nftClaiming ? "Claiming…" : "Claim your Floks NFT"}
-                </button>
-                {nftClaimErr && <p className="notice">{nftClaimErr}</p>}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showWalletModal && (
-        <div
-          className="modal-scrim"
-          onClick={(e) => e.target === e.currentTarget && !wlClaiming && setShowWalletModal(false)}
-        >
-          <div className="modal-card panel stack center">
-            <span className="eyebrow">Final step</span>
-            <h2 className="h-md">
-              {wlClaimed && walletAddress ? "Your WL spot is claimed 🎉" : wlClaimed ? "Submit your wallet" : "Claim your WL spot"}
-            </h2>
-
-            {wlClaimed && walletAddress ? (
-              <>
-                <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.82rem", margin: 0 }}>
+                <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.78rem", margin: 0 }}>
                   {walletAddress}
                 </p>
                 <button className="btn" onClick={() => setShowWalletModal(false)}>
-                  Close
+                  OK
                 </button>
+              </>
+            ) : wlClaimed && walletAddress && !nftNumber ? (
+              <>
+                <span className="eyebrow">Almost there</span>
+                <h2 className="h-md">Claim your Floks NFT number</h2>
+                <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.95rem", maxWidth: "34ch" }}>
+                  Your WL spot and wallet are already locked in — this just assigns your numbered
+                  piece, if one's still available.
+                </p>
+                <button className="btn" onClick={onClaimWl} disabled={wlClaiming}>
+                  {wlClaiming ? "Claiming…" : "Claim your Floks NFT"}
+                </button>
+                {wlError && <p className="notice">{wlError}</p>}
               </>
             ) : (
               <>
+                <span className="eyebrow">{wlClaimed ? "One more thing" : "Final step"}</span>
+                <h2 className="h-md">{wlClaimed ? "Submit your wallet" : "🎉 Your egg has hatched!"}</h2>
                 <p className="muted" style={{ maxWidth: "40ch", margin: 0 }}>
                   {wlClaimed
                     ? "We just need the wallet to tie your spot to. It locks in immediately."
-                    : "Submit the EVM wallet you want your spot tied to — once claimed, it's locked in and can't be changed."}
+                    : "Submit the EVM wallet you want your spot tied to — first 2,000 residents to do this get one of the numbered Floks. Once claimed, it's locked in and can't be changed."}
                 </p>
                 <input
                   className="ref-input"
@@ -338,8 +312,8 @@ export default function RoostEvent() {
               <>
                 <span className="eyebrow">Final step</span>
                 <h2 className="h-md">🎉 Your egg has hatched!</h2>
-                <button className="btn" onClick={() => setShowNftPopup(true)}>
-                  Claim your Floks NFT
+                <button className="btn" onClick={() => setShowWalletModal(true)}>
+                  Claim your WL spot
                 </button>
               </>
             )
@@ -396,7 +370,7 @@ export default function RoostEvent() {
 
           {openDayTasks.length > 0 && (
             <>
-              <span className="eyebrow" style={{ marginTop: 8 }}>Today's tasks</span>
+              <span className="eyebrow" style={{ marginTop: 8 }}>More tasks</span>
               <div className="stack" style={{ gap: 10 }}>
                 {openDayTasks.map((t) => (
                   <button key={t.key} className={`task ${taskDone[t.key] ? "task-done" : ""}`} onClick={() => claimTask(t)} disabled={taskDone[t.key]}>
