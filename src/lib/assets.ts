@@ -9,6 +9,9 @@ const STORAGE = "https://kkhttmjvokztlcttfbcy.supabase.co/storage/v1/object/publ
 export const ASSETS = {
   logo: `${STORAGE}/Logo.jpg`,
 
+  /** One of the 2,000 pieces (nft_1.png … nft_2000.png), assigned server-side via claim_nft(). */
+  nft: (n: number) => `${STORAGE}/NFTs/nft_${n}.png`,
+
   // Coop cards on /home
   cards: {
     barn: `${STORAGE}/Barn.jpg`,
