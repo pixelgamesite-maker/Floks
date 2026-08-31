@@ -62,7 +62,7 @@ export function GamblingArena({ balance, onResolved }: { balance: number; onReso
         <span className="chip">One shot only</span>
       </div>
       <p style={{ margin: "8px 0", fontSize: "0.9rem", lineHeight: 1.55 }}>
-        Double or nothing on your whole balance. Win, and it's doubled — up to the cap. Lose, and
+        Double or nothing on your whole balance. Win, and it's doubled up to the cap. Lose, and
         it's gone. You only get to do this once, ever.
       </p>
 
