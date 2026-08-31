@@ -16,6 +16,9 @@ type ChatRow = {
   residents: { handle: string; avatar_url: string } | null;
 };
 
+/** Who fulfilled a given request message, once someone has. */
+type GiftInfo = { handle: string; amount: number };
+
 function timeAgo(iso: string) {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return "now";
@@ -32,13 +35,18 @@ function timeAgo(iso: string) {
  * parent to re-pull its balance.
  *
  * A message can also carry a requested BP amount — anyone else can gift
- * against it via gift_bp() (schema.sql), which clamps to the recipient's
- * cap headroom server-side, so a gift can never push someone over 2,500.
+ * against it via gift_bp() (schema.sql). A request can only ever be
+ * fulfilled once: a unique index on bp_gifts(message_id) is the actual
+ * guarantee (race-proof even if two people click Gift at the same instant),
+ * enforced here in the UI by hiding the Gift button and showing who already
+ * sent it, kept live across every open tab via the bp_gifts Realtime
+ * subscription below.
  */
 export function GlobalChat({ onSent }: { onSent?: () => void }) {
   const { resident } = useAuth();
   const { play } = useSound();
   const [messages, setMessages] = useState<ChatRow[]>([]);
+  const [gifted, setGifted] = useState<Record<number, GiftInfo>>({});
   const [draft, setDraft] = useState("");
   const [asking, setAsking] = useState(false);
   const [askAmount, setAskAmount] = useState("");
@@ -85,9 +93,27 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
       .select("id, resident_id, body, requested_amount, created_at, residents ( handle, avatar_url )")
       .order("created_at", { ascending: false })
       .limit(HISTORY_LIMIT)
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (!alive || !data) return;
-        setMessages((data as unknown as ChatRow[]).reverse());
+        const rows = (data as unknown as ChatRow[]).reverse();
+        setMessages(rows);
+
+        // Pull fulfillment status for every request in this batch, in one
+        // query rather than one per message.
+        const requestIds = rows.filter((r) => r.requested_amount != null).map((r) => r.id);
+        if (requestIds.length === 0) return;
+
+        const { data: gifts } = await supabase
+          .from("bp_gifts")
+          .select("message_id, amount, residents:sender_id ( handle )")
+          .in("message_id", requestIds);
+
+        if (!alive || !gifts) return;
+        const map: Record<number, GiftInfo> = {};
+        for (const g of gifts as unknown as { message_id: number; amount: number; residents: { handle: string } | null }[]) {
+          if (g.message_id != null) map[g.message_id] = { handle: g.residents?.handle ?? "flok", amount: g.amount };
+        }
+        setGifted(map);
       });
 
     const channel = supabase
@@ -120,6 +146,20 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
         { event: "DELETE", schema: "public", table: "chat_messages" },
         (payload) => {
           setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "bp_gifts" },
+        async (payload) => {
+          const msgId = payload.new.message_id;
+          if (msgId == null) return; // a gift not tied to any chat request
+          const { data: sender } = await supabase
+            .from("residents")
+            .select("handle")
+            .eq("id", payload.new.sender_id)
+            .maybeSingle();
+          setGifted((prev) => ({ ...prev, [msgId]: { handle: sender?.handle ?? "flok", amount: payload.new.amount } }));
         }
       )
       .subscribe();
@@ -197,11 +237,14 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
     const { data, error } = await supabase.rpc("gift_bp", {
       recipient: m.resident_id,
       amount,
-      message_id: m.id,
+      msg_id: m.id,
     });
     setGiftBusy(false);
 
     if (error) {
+      // "already fulfilled" shows up here if someone else's gift landed a
+      // moment before this one — the unique index in schema.sql is what
+      // actually stopped it, this is just surfacing that outcome.
       setGiftMsg((g) => ({ ...g, [m.id]: error.message.replace(/^.*?:\s*/, "") || "That didn't go through." }));
       return;
     }
@@ -209,10 +252,9 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
     const sent = data?.sent ?? amount;
     play("levelup");
     setGiftOpen(null);
-    setGiftMsg((g) => ({
-      ...g,
-      [m.id]: sent < amount ? `Sent ${sent} BP (capped — that's all @${m.residents?.handle} had room for).` : `Sent ${sent} BP 🎁`,
-    }));
+    // Optimistic — the bp_gifts Realtime INSERT above will also set this for
+    // every other open tab, this just makes the sender's own view instant.
+    setGifted((g) => ({ ...g, [m.id]: { handle: resident?.handle ?? "you", amount: sent } }));
     onSent?.();
   }
 
@@ -227,6 +269,7 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
         {messages.length === 0 && <p className="muted center" style={{ margin: "20px 0" }}>Nobody's said gYolk yet — be first.</p>}
         {messages.map((m) => {
           const isMe = m.resident_id === resident?.id;
+          const gift = gifted[m.id];
           return (
             <div className={`chat-row ${isMe ? "chat-row-me" : ""}`} key={m.id}>
               <img className="chat-avatar" src={m.residents?.avatar_url ?? ""} alt="" />
@@ -244,18 +287,24 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
 
                 {m.requested_amount != null && (
                   <div className="stack" style={{ gap: 6, marginTop: 6 }}>
-                    <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                      <span className="chip" style={{ fontSize: "0.62rem" }}>
-                        🎁 Requesting {m.requested_amount} BP
+                    {gift ? (
+                      <span className="chip chip-live" style={{ fontSize: "0.62rem" }}>
+                        🎁 Gifted by @{gift.handle} ({gift.amount} BP)
                       </span>
-                      {!isMe && giftOpen !== m.id && (
-                        <button className="btn btn-sm btn-ghost" onClick={() => openGift(m)}>
-                          Gift
-                        </button>
-                      )}
-                    </div>
+                    ) : (
+                      <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                        <span className="chip" style={{ fontSize: "0.62rem" }}>
+                          🎁 Requesting {m.requested_amount} BP
+                        </span>
+                        {!isMe && giftOpen !== m.id && (
+                          <button className="btn btn-sm btn-ghost" onClick={() => openGift(m)}>
+                            Gift
+                          </button>
+                        )}
+                      </div>
+                    )}
 
-                    {giftOpen === m.id && (
+                    {!gift && giftOpen === m.id && (
                       <div className="row" style={{ gap: 6 }}>
                         <input
                           className="ref-input"
