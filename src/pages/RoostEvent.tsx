@@ -7,6 +7,7 @@ import { Backdrop, TopBar, EggArt, Ticker, XGlyph } from "../components/Shell";
 import { Market } from "../components/Market";
 import { GamblingArena } from "../components/GamblingArena";
 import { VoteCard } from "../components/VoteCard";
+import { ASSETS } from "../lib/assets";
 
 const FLOKS_X = "https://x.com/FloksRH";
 const SHARE_TEXT = "I just secured my spot on the @FloksRH Barn 🐔\n\nJoin here → https://floks.fun";
@@ -40,7 +41,7 @@ function useNow() {
 
 export default function RoostEvent() {
   const { resident } = useAuth();
-  const { earned, spent, balance, owned, hatchReady, cap, eggClaimed, wlClaimed, walletAddress, loading, refresh, claimEgg, claimWl, buy } =
+  const { earned, spent, balance, owned, hatchReady, cap, eggClaimed, wlClaimed, walletAddress, nftNumber, loading, refresh, claimEgg, claimWl, claimNft, buy } =
     useHatchProgress();
   const { play } = useSound();
 
@@ -54,11 +55,22 @@ export default function RoostEvent() {
   const [wlClaiming, setWlClaiming] = useState(false);
   const [wlError, setWlError] = useState("");
   const [walletInput, setWalletInput] = useState("");
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showNftPopup, setShowNftPopup] = useState(false);
+  const [nftClaiming, setNftClaiming] = useState(false);
+  const [nftClaimErr, setNftClaimErr] = useState("");
   const now = useNow();
 
   useEffect(() => {
     if (!loading && !eggClaimed) setShowClaim(true);
   }, [loading, eggClaimed]);
+
+  // Auto-prompt the NFT claim the moment hatchReady is true, if it hasn't
+  // been claimed yet. Only ever flips this true, never false — dismissal
+  // happens by the user clicking OK inside the popup itself.
+  useEffect(() => {
+    if (!loading && hatchReady && !nftNumber) setShowNftPopup(true);
+  }, [loading, hatchReady, nftNumber]);
 
   useEffect(() => {
     if (!resident) return;
@@ -150,6 +162,15 @@ export default function RoostEvent() {
     else setWlError(res.error ?? "That didn't go through — try again.");
   }
 
+  async function onClaimNft() {
+    setNftClaiming(true);
+    setNftClaimErr("");
+    const res = await claimNft();
+    setNftClaiming(false);
+    if (res.ok) play("levelup");
+    else setNftClaimErr(res.error ?? "That didn't go through — try again.");
+  }
+
   async function onBuy(item: (typeof ITEMS)[number]) {
     setMarketMsg("");
     const before = owned.size;
@@ -193,6 +214,89 @@ export default function RoostEvent() {
         </div>
       )}
 
+      {showNftPopup && hatchReady && (
+        <div className="modal-scrim">
+          <div className="modal-card panel stack center">
+            {nftNumber ? (
+              <>
+                <span className="eyebrow">Congratulations</span>
+                <h2 className="h-md">Floks #{nftNumber} is yours 🎉</h2>
+                <img
+                  src={ASSETS.nft(nftNumber)}
+                  alt={`Floks #${nftNumber}`}
+                  style={{ width: "min(240px, 60vw)", borderRadius: 16, border: "3px solid var(--ink)", boxShadow: "var(--pop)" }}
+                />
+                <button className="btn" onClick={() => setShowNftPopup(false)}>
+                  OK
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="eyebrow">Your egg has hatched</span>
+                <h2 className="h-md">Claim your Floks NFT</h2>
+                <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.95rem", maxWidth: "34ch" }}>
+                  You'll be assigned one of 2,000 numbered pieces — random, permanent, yours the
+                  moment you claim it.
+                </p>
+                <button className="btn" onClick={onClaimNft} disabled={nftClaiming}>
+                  {nftClaiming ? "Claiming…" : "Claim your Floks NFT"}
+                </button>
+                {nftClaimErr && <p className="notice">{nftClaimErr}</p>}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showWalletModal && (
+        <div
+          className="modal-scrim"
+          onClick={(e) => e.target === e.currentTarget && !wlClaiming && setShowWalletModal(false)}
+        >
+          <div className="modal-card panel stack center">
+            <span className="eyebrow">Final step</span>
+            <h2 className="h-md">
+              {wlClaimed && walletAddress ? "Your WL spot is claimed 🎉" : wlClaimed ? "Submit your wallet" : "Claim your WL spot"}
+            </h2>
+
+            {wlClaimed && walletAddress ? (
+              <>
+                <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.82rem", margin: 0 }}>
+                  {walletAddress}
+                </p>
+                <button className="btn" onClick={() => setShowWalletModal(false)}>
+                  Close
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="muted" style={{ maxWidth: "40ch", margin: 0 }}>
+                  {wlClaimed
+                    ? "We just need the wallet to tie your spot to. It locks in immediately."
+                    : "Submit the EVM wallet you want your spot tied to — once claimed, it's locked in and can't be changed."}
+                </p>
+                <input
+                  className="ref-input"
+                  style={{ width: "min(380px, 100%)", textAlign: "center" }}
+                  placeholder="0x..."
+                  value={walletInput}
+                  onChange={(e) => setWalletInput(e.target.value)}
+                  disabled={wlClaiming}
+                />
+                <button
+                  className="btn"
+                  onClick={onClaimWl}
+                  disabled={wlClaiming || !/^0x[0-9a-fA-F]{40}$/.test(walletInput.trim())}
+                >
+                  {wlClaiming ? "Submitting…" : wlClaimed ? "Submit wallet" : "Claim WL spot"}
+                </button>
+                {wlError && <p className="notice">{wlError}</p>}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="wrap stack">
         <div className="stack" style={{ gap: 12 }}>
           <span className="chip chip-live">● The Barn is live</span>
@@ -208,55 +312,37 @@ export default function RoostEvent() {
         {/* ── Your egg, or — once fully hatched — congrats + WL claim ── */}
         <div className={`panel ${hatchReady ? "stack center" : "split"}`} style={hatchReady ? { alignItems: "center" } : undefined}>
           {hatchReady ? (
-            <>
-              <span className="eyebrow">Final step</span>
-              <h2 className="h-md">
-                {wlClaimed && walletAddress
-                  ? "Your WL spot is claimed 🎉"
-                  : wlClaimed
-                  ? "One more thing, submit your wallet"
-                  : "🎉 Congratulations — your egg has hatched!"}
-              </h2>
+            nftNumber ? (
+              <>
+                <img
+                  src={ASSETS.nft(nftNumber)}
+                  alt={`Floks #${nftNumber}`}
+                  style={{ width: "min(260px, 60vw)", borderRadius: 16, border: "3px solid var(--ink)", boxShadow: "var(--pop)" }}
+                />
+                <p className="eyebrow" style={{ marginTop: 4 }}>Floks #{nftNumber}</p>
 
-              {wlClaimed && walletAddress ? (
-                <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.82rem", margin: 0 }}>
-                  {walletAddress}
-                </p>
-              ) : (
-                <>
-                  <p className="muted" style={{ maxWidth: "44ch", margin: 0 }}>
-                    {wlClaimed
-                      ? "Your spot is already claimed — we just need the wallet to tie it to. Submit it below, it locks in immediately."
-                      : "All five items collected. Submit the EVM wallet you want your spot tied to — once claimed, it's locked in and can't be changed."}
-                  </p>
-                  <input
-                    className="ref-input"
-                    style={{ width: "min(420px, 100%)", textAlign: "center" }}
-                    placeholder="0x..."
-                    value={walletInput}
-                    onChange={(e) => setWalletInput(e.target.value)}
-                    disabled={wlClaiming}
-                  />
-                  <button
-                    className="btn"
-                    onClick={onClaimWl}
-                    disabled={wlClaiming || !/^0x[0-9a-fA-F]{40}$/.test(walletInput.trim())}
-                  >
-                    {wlClaiming ? "Submitting…" : wlClaimed ? "Submit wallet" : "Claim WL spot"}
-                  </button>
-                  {wlError && <p className="notice">{wlError}</p>}
-                </>
-              )}
+                <a
+                  className="btn btn-ink"
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <XGlyph /> Share on X
+                </a>
 
-              <a
-                className="btn btn-ink"
-                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <XGlyph /> Share on X
-              </a>
-            </>
+                <button className="btn" onClick={() => setShowWalletModal(true)}>
+                  {wlClaimed && walletAddress ? "WL Claimed ✓" : wlClaimed ? "Submit Wallet" : "Claim WL"}
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="eyebrow">Final step</span>
+                <h2 className="h-md">🎉 Your egg has hatched!</h2>
+                <button className="btn" onClick={() => setShowNftPopup(true)}>
+                  Claim your Floks NFT
+                </button>
+              </>
+            )
           ) : (
             <>
               <div className={justLeveled ? "egg-levelup" : ""}>
