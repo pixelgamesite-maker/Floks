@@ -49,8 +49,7 @@ type HatchValue = {
   loading: boolean;
   refresh: () => Promise<void>;
   claimEgg: () => Promise<{ ok: boolean; error?: string }>;
-  claimWl: (wallet: string) => Promise<{ ok: boolean; error?: string }>;
-  claimNft: () => Promise<{ ok: boolean; number?: number; error?: string }>;
+  claimWl: (wallet: string) => Promise<{ ok: boolean; number?: number; error?: string }>;
   buy: (item: MarketItem) => Promise<PurchaseResult>;
 };
 
@@ -128,58 +127,35 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }
 
-  async function claimWl(wallet: string): Promise<{ ok: boolean; error?: string }> {
+  /**
+   * One call handles every state: a fresh claim (5 items + wallet + gets an
+   * NFT number, all atomically), a backfill (WL already claimed, just fills
+   * in whatever's missing), or a no-op if everything's already set. There's
+   * no longer a separate "claim your NFT number" step — see claim_wl() in
+   * schema.sql for why that split was a real gap (it let someone take a
+   * slot from the 2,000-cap pool without ever finishing wallet submission).
+   */
+  async function claimWl(wallet: string): Promise<{ ok: boolean; number?: number; error?: string }> {
     if (!residentId) return { ok: false, error: "Still loading your profile — wait a moment and try again." };
+    if (wlClaimedAt && walletAddress && nftNumber) return { ok: true, number: nftNumber };
 
     const trimmed = wallet.trim();
     if (!/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
       return { ok: false, error: "That doesn't look like a valid EVM address (0x + 40 hex characters)." };
     }
+    if (!wlClaimedAt && !hatchReady) return { ok: false, error: "Collect all five items first." };
 
-    // Backfill path: this resident already claimed WL before wallet
-    // collection existed, so wl_claimed_at is set but wallet_address isn't.
-    // Submit just the wallet, don't touch wl_claimed_at at all.
-    if (wlClaimedAt) {
-      if (walletAddress) return { ok: true };
-      const { error } = await supabase.from("residents").update({ wallet_address: trimmed }).eq("id", residentId);
-      if (error) {
-        console.error("claimWl (wallet-only backfill) failed:", error);
-        return { ok: false, error: error.message };
-      }
-      setWalletAddress(trimmed);
-      return { ok: true };
-    }
-
-    if (!hatchReady) return { ok: false, error: "Collect all five items first." };
-
-    const now = new Date().toISOString();
-    const { error } = await supabase
-      .from("residents")
-      .update({ wl_claimed_at: now, wallet_address: trimmed })
-      .eq("id", residentId);
+    const { data, error } = await supabase.rpc("claim_wl", { wallet: trimmed });
     if (error) {
       console.error("claimWl failed:", error);
       return { ok: false, error: error.message };
     }
 
-    setWlClaimedAt(now);
-    setWalletAddress(trimmed);
-    return { ok: true };
-  }
-
-  async function claimNft(): Promise<{ ok: boolean; number?: number; error?: string }> {
-    if (!residentId) return { ok: false, error: "Still loading your profile — wait a moment and try again." };
-    if (nftNumber) return { ok: true, number: nftNumber };
-    if (!hatchReady) return { ok: false, error: "Collect all five items first." };
-
-    const { data, error } = await supabase.rpc("claim_nft");
-    if (error) {
-      console.error("claimNft failed:", error);
-      return { ok: false, error: error.message };
-    }
-
-    setNftNumber(data as number);
-    return { ok: true, number: data as number };
+    const number = (data as { nft_number: number | null })?.nft_number ?? null;
+    setWlClaimedAt((prev) => prev ?? new Date().toISOString());
+    setWalletAddress((prev) => prev ?? trimmed);
+    if (number) setNftNumber(number);
+    return { ok: true, number: number ?? undefined };
   }
 
   async function buy(item: MarketItem): Promise<PurchaseResult> {
@@ -213,7 +189,6 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     refresh,
     claimEgg,
     claimWl,
-    claimNft,
     buy,
   };
 
