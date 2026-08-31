@@ -162,6 +162,9 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  min-width: 0; /* the actual fix — a flex item defaults to min-width:auto,
+                   which silently overrides max-width/ellipsis and lets it
+                   overflow its row instead of truncating */
 }
 
 /* ── Header ─────────────────────────────────────────── */
@@ -585,6 +588,7 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
 
 .chat-bubble {
   max-width: 72%;
+  overflow: hidden;
   background: var(--shell);
   border: 2px solid var(--ink);
   border-radius: 12px;
@@ -664,43 +668,64 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
   padding: 0 20px 24px;
 }
 
-/* ── Floating chat widget ───────────────────────────── */
-.chat-fab {
+/* ── Chat side tab + full-height sliding panel ─────────── */
+.chat-tab {
   position: fixed;
-  bottom: 22px; right: 22px;
+  top: 50%;
+  right: 0;
   z-index: 60;
-  width: 56px; height: 56px;
-  border-radius: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  padding: 14px 4px;
   border: var(--edge);
+  border-right: none;
+  border-radius: 14px 0 0 14px;
   background: var(--yolk);
-  font-size: 1.4rem;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  box-shadow: var(--pop);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.chat-fab:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--ink); }
-
-.chat-drawer {
-  position: fixed;
-  bottom: 90px; right: 22px;
-  z-index: 59;
-  width: min(360px, calc(100vw - 32px));
-  max-height: min(500px, calc(100vh - 140px));
   display: flex;
   flex-direction: column;
-  animation: chat-drawer-in 0.22s ease both;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: -4px 4px 0 var(--ink);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, width 0.15s ease;
 }
-@keyframes chat-drawer-in {
-  from { opacity: 0; transform: translateY(16px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+.chat-tab:hover { transform: translateY(-50%) translateX(-3px); box-shadow: -8px 6px 0 var(--ink); }
+.chat-tab span:first-child { font-size: 1rem; line-height: 1; }
+.chat-tab-label { font-size: 1.1rem; line-height: 1; }
+
+.chat-panel-drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: min(420px, 92vw);
+  background: var(--shell);
+  border-left: var(--edge);
+  box-shadow: var(--pop-lg);
+  display: flex;
+  flex-direction: column;
+  animation: chat-panel-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes chat-panel-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
 }
 
-@media (max-width: 480px) {
-  .chat-drawer { right: 16px; bottom: 82px; width: calc(100vw - 32px); }
-  .chat-fab { right: 16px; bottom: 16px; }
+.chat-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px 20px;
+  overflow: hidden;
 }
+/* GlobalChat's own message list scrolls; give it real height to work with
+   now that it's inside a full-height panel instead of a capped floating box. */
+.chat-panel-body .chat-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.chat-panel-body .chat-list { flex: 1; min-height: 0; max-height: none; }
+
+@media (max-width: 480px) {
+  .chat-panel-drawer { width: 100vw; border-left: none; }
+}
+
 
 /* ── Gambling arena ─────────────────────────────────── */
 .gamble-card {
