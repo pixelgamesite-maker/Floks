@@ -45,10 +45,12 @@ type HatchValue = {
   eggClaimed: boolean;
   wlClaimed: boolean;
   walletAddress: string | null;
+  nftNumber: number | null;
   loading: boolean;
   refresh: () => Promise<void>;
   claimEgg: () => Promise<{ ok: boolean; error?: string }>;
   claimWl: (wallet: string) => Promise<{ ok: boolean; error?: string }>;
+  claimNft: () => Promise<{ ok: boolean; number?: number; error?: string }>;
   buy: (item: MarketItem) => Promise<PurchaseResult>;
 };
 
@@ -69,6 +71,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
   const [eggClaimedAt, setEggClaimedAt] = useState<string | null>(null);
   const [wlClaimedAt, setWlClaimedAt] = useState<string | null>(null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [nftNumber, setNftNumber] = useState<number | null>(null);
   const [cap, setCap] = useState(2500);
   const [loading, setLoading] = useState(true);
 
@@ -85,7 +88,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     const [{ data: bal }, { data: items }, { data: res }, { data: config }] = await Promise.all([
       supabase.rpc("barn_balance", { target: residentId }),
       supabase.from("resident_items").select("item_key").eq("resident_id", residentId),
-      supabase.from("residents").select("egg_claimed_at, wl_claimed_at, wallet_address").eq("id", residentId).maybeSingle(),
+      supabase.from("residents").select("egg_claimed_at, wl_claimed_at, wallet_address, nft_number").eq("id", residentId).maybeSingle(),
       supabase.from("app_config").select("value").eq("key", "bp_cap").maybeSingle(),
     ]);
 
@@ -94,6 +97,7 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     setEggClaimedAt(res?.egg_claimed_at ?? null);
     setWlClaimedAt(res?.wl_claimed_at ?? null);
     setWalletAddress(res?.wallet_address ?? null);
+    setNftNumber(res?.nft_number ?? null);
     if (config?.value) setCap(config.value);
     setLoading(false);
   }, [residentId]);
@@ -163,6 +167,21 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }
 
+  async function claimNft(): Promise<{ ok: boolean; number?: number; error?: string }> {
+    if (!residentId) return { ok: false, error: "Still loading your profile — wait a moment and try again." };
+    if (nftNumber) return { ok: true, number: nftNumber };
+    if (!hatchReady) return { ok: false, error: "Collect all five items first." };
+
+    const { data, error } = await supabase.rpc("claim_nft");
+    if (error) {
+      console.error("claimNft failed:", error);
+      return { ok: false, error: error.message };
+    }
+
+    setNftNumber(data as number);
+    return { ok: true, number: data as number };
+  }
+
   async function buy(item: MarketItem): Promise<PurchaseResult> {
     if (!residentId) return { ok: false, reason: "error" };
     if (owned.has(item.key)) return { ok: false, reason: "owned" };
@@ -189,10 +208,12 @@ export function HatchProvider({ children }: { children: ReactNode }) {
     eggClaimed: !!eggClaimedAt,
     wlClaimed: !!wlClaimedAt,
     walletAddress,
+    nftNumber,
     loading,
     refresh,
     claimEgg,
     claimWl,
+    claimNft,
     buy,
   };
 
