@@ -287,22 +287,27 @@ export function GlobalChat({ onSent }: { onSent?: () => void }) {
 
                 {m.requested_amount != null && (
                   <div className="stack" style={{ gap: 6, marginTop: 6 }}>
-                    {gift ? (
-                      <span className="chip chip-live" style={{ fontSize: "0.62rem" }}>
-                        🎁 Gifted by @{gift.handle} ({gift.amount} BP)
-                      </span>
-                    ) : (
-                      <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                        <span className="chip" style={{ fontSize: "0.62rem" }}>
-                          🎁 Requesting {m.requested_amount} BP
+                    <div className="row" style={{ gap: 8, alignItems: "center", justifyContent: gift ? "flex-end" : "space-between" }}>
+                      {gift ? (
+                        <span
+                          className="chip chip-live gift-badge"
+                          title={`Gifted by @${gift.handle} — ${gift.amount} BP`}
+                        >
+                          🎁 @{gift.handle} +{gift.amount}
                         </span>
-                        {!isMe && giftOpen !== m.id && (
-                          <button className="btn btn-sm btn-ghost" onClick={() => openGift(m)}>
-                            Gift
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      ) : (
+                        <>
+                          <span className="chip" style={{ fontSize: "0.62rem" }}>
+                            🎁 Requesting {m.requested_amount} BP
+                          </span>
+                          {!isMe && giftOpen !== m.id && (
+                            <button className="btn btn-sm btn-ghost" onClick={() => openGift(m)}>
+                              Gift
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
 
                     {!gift && giftOpen === m.id && (
                       <div className="row" style={{ gap: 6 }}>
