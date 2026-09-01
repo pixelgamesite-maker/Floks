@@ -3,9 +3,9 @@ import { createPortal } from "react-dom";
 
 const FAQ = [
   { q: "What is Floks?", a: "A 4,900 supply collection on Robinhood Chain, with a Barn Points economy deciding whitelist access." },
-  { q: "How many communities get spots?", a: "Ten partner communities, claiming 1,000+ spots between them." },
+  { q: "How many communities get spots?", a: "Sixteen partner communities, claiming 1,000+ spots between them." },
   { q: "What's the BP cap?", a: "2,500 BP per resident. Once you hit it, tasks and referrals stop adding until you spend some at the market." },
-  { q: "Can I gamble more than once?", a: "No — Double or Nothing in the Gambling Arena is a one-time shot per resident." },
+  { q: "Can I gamble more than once?", a: "No, Double or Nothing in the Gambling Arena is a one-time shot per resident." },
 ];
 
 export function HamburgerMenu() {
