@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Backdrop, TopBar, Ticker } from "../components/Shell";
+import { Backdrop, TopBar } from "../components/Shell";
 
 /** Flip when the challenge ships. */
 export const CHALLENGE_UNLOCKED = false;
@@ -83,8 +83,6 @@ export default function ChickenChallenge() {
         </div>
       </div>
 
-      <div className="spacer-lg" />
-      <Ticker />
       <div className="spacer-lg" />
     </div>
   );
