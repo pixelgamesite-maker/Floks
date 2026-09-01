@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { ITEMS, eggLevel, useHatchProgress } from "../hooks/useHatchProgress";
-import { Backdrop, TopBar, EggArt, Ticker } from "../components/Shell";
+import { Backdrop, TopBar, EggArt } from "../components/Shell";
 
 /** Flip to true when this next phase actually opens. */
 export const ROOST_EVENT_UNLOCKED = false;
@@ -108,8 +108,6 @@ export default function TheBarn() {
         </div>
       </div>
 
-      <div className="spacer-lg" />
-      <Ticker />
       <div className="spacer-lg" />
     </div>
   );
