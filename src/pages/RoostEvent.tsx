@@ -3,7 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabase";
 import { ITEMS, HATCH_TOTAL, eggLevel, useHatchProgress } from "../hooks/useHatchProgress";
 import { useSound } from "../hooks/useSound";
-import { Backdrop, TopBar, EggArt, Ticker, XGlyph } from "../components/Shell";
+import { Backdrop, TopBar, EggArt, XGlyph } from "../components/Shell";
 import { Market } from "../components/Market";
 import { GamblingArena } from "../components/GamblingArena";
 import { VoteCard } from "../components/VoteCard";
@@ -401,8 +401,6 @@ export default function RoostEvent() {
         {eggClaimed && <GamblingArena balance={balance} onResolved={refresh} />}
       </div>
 
-      <div className="spacer-lg" />
-      <Ticker />
       <div className="spacer-lg" />
     </div>
   );
