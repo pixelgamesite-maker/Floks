@@ -198,7 +198,7 @@ export default function Claim() {
             Claim your <span className="word-yolk">spot</span>
           </h1>
           <p className="lede" style={{ color: "var(--cream)" }}>
-            1,000 spots shared across all 16 communities — first come, first served, no login
+            1,000 spots shared across all 16 communities, first come, first served, no login
             needed. Pick your community, paste your wallet, and if you're on the list, it's yours.
           </p>
           {claimedCount != null && <span className="chip">{claimedCount} / {TOTAL_SPOTS} claimed</span>}
