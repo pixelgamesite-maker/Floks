@@ -7,10 +7,10 @@ import { ChatWidget } from "./components/ChatWidget";
 
 import Landing from "./pages/Landing";
 import Callback from "./pages/Auth/callback";
-import Home from "./pages/Home";
 import RoostEvent from "./pages/RoostEvent";
 import TheBarn from "./pages/TheBarn";
 import ChickenChallenge from "./pages/ChickenChallenge";
+import Claim from "./pages/Claim";
 
 import "./styles/floks.css";
 
@@ -47,14 +47,11 @@ function AppShell() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/callback" element={<Callback />} />
-        <Route
-          path="/home"
-          element={
-            <Gate>
-              <Home />
-            </Gate>
-          }
-        />
+        {/* Public, no X login at all — anyone can open this directly. */}
+        <Route path="/claim" element={<Claim />} />
+        {/* /home used to be a 3-card picker; there's one real destination
+            now, so this just redirects — kept so any old links still work. */}
+        <Route path="/home" element={<Navigate to="/roost-event" replace />} />
         <Route
           path="/roost-event"
           element={
