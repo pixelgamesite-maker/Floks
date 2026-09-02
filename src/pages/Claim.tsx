@@ -65,6 +65,7 @@ export default function Claim() {
   const [sheetRows, setSheetRows] = useState<EligibilityRow[] | null>(null);
   const [sheetError, setSheetError] = useState("");
   const [claimedCount, setClaimedCount] = useState<number | null>(null);
+  const [byCommunity, setByCommunity] = useState<Record<string, number>>({});
 
   const [active, setActive] = useState<Community | null>(null);
   const [wallet, setWallet] = useState("");
@@ -99,17 +100,27 @@ export default function Claim() {
       });
   }, []);
 
-  // Live claimed count, kept current via Realtime.
+  // Live counts, kept current via Realtime. Fetches every row's community
+  // column once (capped at 1,000 rows total, trivial to aggregate client-
+  // side) rather than needing a separate SQL view just for group counts.
   useEffect(() => {
     supabase
       .from("community_claims")
-      .select("*", { count: "exact", head: true })
-      .then(({ count }) => setClaimedCount(count ?? 0));
+      .select("community")
+      .then(({ data }) => {
+        const rows = data ?? [];
+        setClaimedCount(rows.length);
+        const counts: Record<string, number> = {};
+        for (const r of rows) counts[r.community] = (counts[r.community] ?? 0) + 1;
+        setByCommunity(counts);
+      });
 
     const channel = supabase
       .channel("community-claims-tally")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_claims" }, () => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_claims" }, (payload) => {
         setClaimedCount((c) => (c ?? 0) + 1);
+        const community = payload.new.community as string;
+        setByCommunity((prev) => ({ ...prev, [community]: (prev[community] ?? 0) + 1 }));
       })
       .subscribe();
 
@@ -117,8 +128,6 @@ export default function Claim() {
       supabase.removeChannel(channel);
     };
   }, []);
-
-  const spotsLeft = claimedCount == null ? null : Math.max(0, TOTAL_SPOTS - claimedCount);
 
   function openCommunity(c: Community) {
     setActive(c);
@@ -192,7 +201,7 @@ export default function Claim() {
             1,000 spots shared across all 16 communities — first come, first served, no login
             needed. Pick your community, paste your wallet, and if you're on the list, it's yours.
           </p>
-          {spotsLeft != null && <span className="chip">{spotsLeft} / {TOTAL_SPOTS} spots left</span>}
+          {claimedCount != null && <span className="chip">{claimedCount} / {TOTAL_SPOTS} claimed</span>}
           {sheetError && <p className="notice">{sheetError}</p>}
         </div>
 
@@ -201,6 +210,7 @@ export default function Claim() {
             <button key={c.key} className="community-tile" onClick={() => openCommunity(c)}>
               <img src={c.image} alt={c.displayName} />
               <span>{c.displayName}</span>
+              <span className="community-count">{byCommunity[c.sheetName] ?? 0} claimed</span>
             </button>
           ))}
         </div>
