@@ -14,14 +14,6 @@ export type Community = {
   image: string;
 };
 
-/**
- * ⚠️ One unresolved entry as of writing — confirm before this goes live:
- *
- * "NPC" is in the sheet but has no uploaded image. Using a shared
- * placeholder tile for it below — swap ASSETS.logo for
- * ASSETS.community("NPC.avif") (or whatever the real filename ends up
- * being) the moment it's uploaded.
- */
 export const COMMUNITIES: Community[] = [
   { key: "cash-cats", displayName: "Cash Cats", sheetName: "CashCats", image: ASSETS.community("Cash cats.avif") },
   { key: "bull-runners", displayName: "Bull Runners", sheetName: "Bull Runners", image: ASSETS.community("Bull runners.avif") },
@@ -38,7 +30,7 @@ export const COMMUNITIES: Community[] = [
   { key: "rh-machine", displayName: "RH Machine", sheetName: "RH Machine", image: ASSETS.community("RH Machine.avif") },
   { key: "script-kiddies", displayName: "Script Kiddies", sheetName: "Script Kiddies", image: ASSETS.community("Script Kiddies.avif") },
   { key: "stackers", displayName: "Stackers", sheetName: "Stackers", image: ASSETS.community("Stackers.avif") },
-  { key: "npc", displayName: "NPC", sheetName: "NPC", image: ASSETS.logo }, // ⚠️ placeholder — no image uploaded yet
+  { key: "npc", displayName: "NPC", sheetName: "NPC", image: ASSETS.community("NPC.avif") },
 ];
 
 export const ELIGIBILITY_SHEET_CSV_URL =
