@@ -9,8 +9,15 @@ const STORAGE = "https://kkhttmjvokztlcttfbcy.supabase.co/storage/v1/object/publ
 export const ASSETS = {
   logo: `${STORAGE}/Logo.jpg`,
 
-  /** One of the 2,000 pieces (nft_1.png … nft_2000.png), assigned server-side via claim_nft(). */
+  /** One of the 4,000 pieces (nft_1.png … nft_4000.png), assigned server-side via claim_wl(). */
   nft: (n: number) => `${STORAGE}/NFTs/nft_${n}.png`,
+
+  /**
+   * A community logo from the /claim page — pass the plain filename as it
+   * actually is in Storage ("Cash cats.avif", space and all); this encodes
+   * it, so nobody has to hand-type %20 into a URL again.
+   */
+  community: (filename: string) => `${STORAGE}/Communities/${encodeURIComponent(filename)}`,
 
   // Coop cards on /home
   cards: {
