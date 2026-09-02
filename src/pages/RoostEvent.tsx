@@ -247,7 +247,7 @@ export default function RoostEvent() {
                 <p className="muted" style={{ maxWidth: "40ch", margin: 0 }}>
                   {wlClaimed
                     ? "We just need the wallet to tie your spot to. It locks in immediately."
-                    : "Submit the EVM wallet you want your spot tied to — first 2,000 residents to do this get one of the numbered Floks. Once claimed, it's locked in and can't be changed."}
+                    : "Submit the EVM wallet you want your spot tied to — first 4,000 residents to do this get one of the numbered Floks. Once claimed, it's locked in and can't be changed."}
                 </p>
                 <input
                   className="ref-input"
