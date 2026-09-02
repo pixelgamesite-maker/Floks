@@ -922,3 +922,11 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
   text-align: center;
   line-height: 1.2;
 }
+.community-count {
+  font-family: var(--mono) !important;
+  font-weight: 700 !important;
+  font-size: 0.62rem !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
