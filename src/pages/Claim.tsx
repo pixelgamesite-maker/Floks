@@ -1,69 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { ASSETS } from "../lib/assets";
-import { COMMUNITIES, ELIGIBILITY_SHEET_CSV_URL, type Community } from "../lib/communities";
+import { COMMUNITIES, type Community } from "../lib/communities";
 
 const TOTAL_SPOTS = 1000;
 
 /**
- * Small hand-rolled CSV parser instead of a new npm dependency — handles
- * quoted fields (including embedded commas/quotes) and both \n and \r\n
- * line endings, which covers what a Google Sheets CSV export actually
- * produces. If your sheet does something more exotic, this is the one
- * place to fix.
+ * Public claim page — no X login at all. Eligibility (is this wallet on the
+ * sheet for this community) is checked entirely inside the
+ * claim-community-spot Edge Function now, not here — this component just
+ * collects a wallet and shows the result. See that function's file for why:
+ * a client-side check here could always be skipped by calling the database
+ * directly, which is exactly what happened before this was moved.
  */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else inQuotes = false;
-      } else field += c;
-    } else if (c === '"') {
-      inQuotes = true;
-    } else if (c === ",") {
-      row.push(field);
-      field = "";
-    } else if (c === "\n" || c === "\r") {
-      if (c === "\r" && text[i + 1] === "\n") i++;
-      row.push(field);
-      if (row.some((f) => f.trim() !== "")) rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += c;
-    }
-  }
-  if (field !== "" || row.length) {
-    row.push(field);
-    if (row.some((f) => f.trim() !== "")) rows.push(row);
-  }
-  return rows;
-}
-
-/** Finds a column by trying a few common header spellings, case-insensitively. */
-function findColumn(header: string[], candidates: string[]): number {
-  const lower = header.map((h) => h.trim().toLowerCase());
-  for (const cand of candidates) {
-    const idx = lower.indexOf(cand.toLowerCase());
-    if (idx !== -1) return idx;
-  }
-  return -1;
-}
-
-type EligibilityRow = { wallet: string; community: string };
-
 export default function Claim() {
-  const [sheetRows, setSheetRows] = useState<EligibilityRow[] | null>(null);
-  const [sheetError, setSheetError] = useState("");
   const [claimedCount, setClaimedCount] = useState<number | null>(null);
   const [byCommunity, setByCommunity] = useState<Record<string, number>>({});
 
@@ -72,37 +22,9 @@ export default function Claim() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string; spot?: number } | null>(null);
 
-  // Fetch + parse the eligibility sheet once on load.
-  useEffect(() => {
-    fetch(ELIGIBILITY_SHEET_CSV_URL)
-      .then((r) => {
-        if (!r.ok) throw new Error(`Sheet fetch failed: ${r.status}`);
-        return r.text();
-      })
-      .then((text) => {
-        const rows = parseCsv(text);
-        if (rows.length < 2) throw new Error("Sheet looks empty");
-        const header = rows[0];
-        const walletCol = findColumn(header, ["wallet", "wallet address", "evm wallet", "address"]);
-        const communityCol = findColumn(header, ["community", "group", "team", "project"]);
-        if (walletCol === -1 || communityCol === -1) {
-          throw new Error(`Couldn't find wallet/community columns. Header was: ${header.join(", ")}`);
-        }
-        const parsed: EligibilityRow[] = rows.slice(1).map((r) => ({
-          wallet: (r[walletCol] ?? "").trim().toLowerCase(),
-          community: (r[communityCol] ?? "").trim().toLowerCase(),
-        }));
-        setSheetRows(parsed);
-      })
-      .catch((err) => {
-        console.error("Eligibility sheet load failed:", err);
-        setSheetError("Couldn't load the eligibility list. Try refreshing.");
-      });
-  }, []);
-
-  // Live counts, kept current via Realtime. Fetches every row's community
-  // column once (capped at 1,000 rows total, trivial to aggregate client-
-  // side) rather than needing a separate SQL view just for group counts.
+  // Live counts, kept current via Realtime. Keyed by lowercase community
+  // name so a claim always shows up on its card regardless of exactly how
+  // the string was cased when it was stored.
   useEffect(() => {
     supabase
       .from("community_claims")
@@ -111,7 +33,10 @@ export default function Claim() {
         const rows = data ?? [];
         setClaimedCount(rows.length);
         const counts: Record<string, number> = {};
-        for (const r of rows) counts[r.community] = (counts[r.community] ?? 0) + 1;
+        for (const r of rows) {
+          const key = r.community.toLowerCase();
+          counts[key] = (counts[key] ?? 0) + 1;
+        }
         setByCommunity(counts);
       });
 
@@ -119,8 +44,8 @@ export default function Claim() {
       .channel("community-claims-tally")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_claims" }, (payload) => {
         setClaimedCount((c) => (c ?? 0) + 1);
-        const community = payload.new.community as string;
-        setByCommunity((prev) => ({ ...prev, [community]: (prev[community] ?? 0) + 1 }));
+        const key = (payload.new.community as string).toLowerCase();
+        setByCommunity((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
       })
       .subscribe();
 
@@ -140,13 +65,6 @@ export default function Claim() {
     setActive(null);
   }
 
-  const eligible = useMemo(() => {
-    if (!active || !sheetRows) return null;
-    const w = wallet.trim().toLowerCase();
-    if (!/^0x[0-9a-f]{40}$/.test(w)) return null;
-    return sheetRows.some((r) => r.wallet === w && r.community === active.sheetName.toLowerCase());
-  }, [active, sheetRows, wallet]);
-
   async function confirm() {
     if (!active) return;
     const trimmed = wallet.trim();
@@ -154,27 +72,27 @@ export default function Claim() {
       setResult({ ok: false, message: "That doesn't look like a valid EVM address." });
       return;
     }
-    if (!sheetRows) {
-      setResult({ ok: false, message: "Still loading the eligibility list — try again in a moment." });
-      return;
-    }
-    if (!eligible) {
-      setResult({ ok: false, message: `This wallet isn't on the list for ${active.displayName}.` });
-      return;
-    }
 
     setBusy(true);
-    const { data, error } = await supabase.rpc("claim_community_spot", {
-      wallet_in: trimmed,
-      community_in: active.sheetName,
+    const { data, error } = await supabase.functions.invoke("claim-community-spot", {
+      body: { wallet: trimmed, community: active.sheetName },
     });
     setBusy(false);
 
-    if (error) {
-      console.error("claim_community_spot failed:", error);
-      setResult({ ok: false, message: error.message });
+    // supabase-js surfaces a non-2xx Edge Function response as `error`, but
+    // the actual message we want to show is in the response body — which
+    // lands in `error.context` for a FunctionsHttpError. Fall back sensibly
+    // either way rather than showing a raw/blank error.
+    if (error || (data as { error?: string })?.error) {
+      const message =
+        (data as { error?: string })?.error ??
+        (error as { context?: { error?: string } })?.context?.error ??
+        error?.message ??
+        "That didn't go through — try again.";
+      setResult({ ok: false, message });
       return;
     }
+
     setResult({ ok: true, message: "Spot claimed!", spot: (data as { spot_number: number })?.spot_number });
   }
 
@@ -198,11 +116,10 @@ export default function Claim() {
             Claim your <span className="word-yolk">spot</span>
           </h1>
           <p className="lede" style={{ color: "var(--cream)" }}>
-            1,000 spots shared across all 16 communities, first come, first served, no login
+            1,000 spots shared across all 16 communities — first come, first served, no login
             needed. Pick your community, paste your wallet, and if you're on the list, it's yours.
           </p>
           {claimedCount != null && <span className="chip">{claimedCount} / {TOTAL_SPOTS} claimed</span>}
-          {sheetError && <p className="notice">{sheetError}</p>}
         </div>
 
         <div className="community-grid">
@@ -210,7 +127,7 @@ export default function Claim() {
             <button key={c.key} className="community-tile" onClick={() => openCommunity(c)}>
               <img src={c.image} alt={c.displayName} />
               <span>{c.displayName}</span>
-              <span className="community-count">{byCommunity[c.sheetName] ?? 0} claimed</span>
+              <span className="community-count">{byCommunity[c.sheetName.toLowerCase()] ?? 0} claimed</span>
             </button>
           ))}
         </div>
@@ -253,8 +170,8 @@ export default function Claim() {
                   }}
                   disabled={busy}
                 />
-                <button className="btn" onClick={confirm} disabled={busy || !sheetRows}>
-                  {busy ? "Checking…" : !sheetRows ? "Loading list…" : "Confirm"}
+                <button className="btn" onClick={confirm} disabled={busy}>
+                  {busy ? "Checking…" : "Confirm"}
                 </button>
                 {result && !result.ok && <p className="notice">{result.message}</p>}
               </>
