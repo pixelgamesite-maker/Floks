@@ -33,5 +33,12 @@ export const COMMUNITIES: Community[] = [
   { key: "npc", displayName: "NPC", sheetName: "NPC", image: ASSETS.community("NPC.avif") },
 ];
 
+/**
+ * Not used client-side anymore — the actual eligibility check moved to
+ * supabase/functions/claim-community-spot/index.ts, which has its own copy
+ * of this same URL (a Deno Edge Function can't import a .ts file from the
+ * Vite app, hence the duplication). Kept here as the canonical reference —
+ * if the sheet URL ever changes, update it in both places.
+ */
 export const ELIGIBILITY_SHEET_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vTeEe2jePaZ_c9YJyfL7cc4hWiVCsOp9rXZq_MlOnUKN89cBHB7MSmvdVgRYpnCaa7yB-eaoXTHmLPk/pub?output=csv";
