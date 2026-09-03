@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabase";
 import { ITEMS, HATCH_TOTAL, eggLevel, useHatchProgress } from "../hooks/useHatchProgress";
@@ -57,10 +57,24 @@ export default function RoostEvent() {
   const [walletInput, setWalletInput] = useState("");
   const [showWalletModal, setShowWalletModal] = useState(false);
   const now = useNow();
+  const backfillAttempted = useRef(false);
 
   useEffect(() => {
     if (!loading && !eggClaimed) setShowClaim(true);
   }, [loading, eggClaimed]);
+
+  // Silent, one-time attempt to fill in a missing NFT number for someone
+  // who's already fully WL-claimed. No visible button or loading state for
+  // this on purpose — most people land here because the 4,000-cap pool is
+  // permanently gone (nothing to retry), but on the off chance someone
+  // genuinely still has room, this quietly picks it up without ever
+  // surfacing the distinction on screen.
+  useEffect(() => {
+    if (wlClaimed && walletAddress && !nftNumber && !backfillAttempted.current) {
+      backfillAttempted.current = true;
+      claimWl(walletAddress);
+    }
+  }, [wlClaimed, walletAddress, nftNumber, claimWl]);
 
   // Auto-prompt the wallet/WL claim the moment hatchReady is true and it
   // isn't fully done yet (covers a fresh claim and every backfill state —
@@ -229,16 +243,14 @@ export default function RoostEvent() {
               </>
             ) : wlClaimed && walletAddress && !nftNumber ? (
               <>
-                <span className="eyebrow">Almost there</span>
-                <h2 className="h-md">Claim your Floks NFT number</h2>
-                <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.95rem", maxWidth: "34ch" }}>
-                  Your WL spot and wallet are already locked in — this just assigns your numbered
-                  piece, if one's still available.
+                <span className="eyebrow">Confirmed</span>
+                <h2 className="h-md">You're in 🎉</h2>
+                <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.78rem", margin: 0 }}>
+                  {walletAddress}
                 </p>
-                <button className="btn" onClick={onClaimWl} disabled={wlClaiming}>
-                  {wlClaiming ? "Claiming…" : "Claim your Floks NFT"}
+                <button className="btn" onClick={() => setShowWalletModal(false)}>
+                  OK
                 </button>
-                {wlError && <p className="notice">{wlError}</p>}
               </>
             ) : (
               <>
@@ -247,7 +259,7 @@ export default function RoostEvent() {
                 <p className="muted" style={{ maxWidth: "40ch", margin: 0 }}>
                   {wlClaimed
                     ? "We just need the wallet to tie your spot to. It locks in immediately."
-                    : "Submit the EVM wallet you want your spot tied to — first 4,000 residents to do this get one of the numbered Floks. Once claimed, it's locked in and can't be changed."}
+                    : "Submit the EVM wallet you want your spot tied to — once claimed, it's locked in and can't be changed."}
                 </p>
                 <input
                   className="ref-input"
@@ -307,6 +319,22 @@ export default function RoostEvent() {
                 <button className="btn" onClick={() => setShowWalletModal(true)}>
                   {wlClaimed && walletAddress ? "WL Claimed ✓" : wlClaimed ? "Submit Wallet" : "Claim WL"}
                 </button>
+              </>
+            ) : wlClaimed && walletAddress ? (
+              <>
+                <span className="eyebrow">Confirmed</span>
+                <h2 className="h-md">You're in 🎉</h2>
+                <p className="muted" style={{ fontFamily: "var(--mono)", fontSize: "0.78rem", margin: 0 }}>
+                  {walletAddress}
+                </p>
+                <a
+                  className="btn btn-ink"
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <XGlyph /> Share on X
+                </a>
               </>
             ) : (
               <>
