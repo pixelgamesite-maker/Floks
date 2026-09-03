@@ -5,6 +5,18 @@ import { COMMUNITIES, type Community } from "../lib/communities";
 
 const TOTAL_SPOTS = 1000;
 
+// Fixed clock time, same for every visitor — not counted per page load.
+// ISO 8601 in UTC so it doesn't shift with anyone's local timezone.
+const CLAIM_OPEN_AT = new Date("2026-09-03T09:00:00Z").getTime();
+
+function formatCountdown(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
 /**
  * Public claim page — no X login at all. Eligibility (is this wallet on the
  * sheet for this community) is checked entirely inside the
@@ -21,6 +33,16 @@ export default function Claim() {
   const [wallet, setWallet] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string; spot?: number } | null>(null);
+
+  // Ticking clock for the countdown.
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const msLeft = CLAIM_OPEN_AT - now;
+  const isOpen = msLeft <= 0;
 
   // Live counts, kept current via Realtime. Keyed by lowercase community
   // name so a claim always shows up on its card regardless of exactly how
@@ -55,6 +77,7 @@ export default function Claim() {
   }, []);
 
   function openCommunity(c: Community) {
+    if (!isOpen) return;
     setActive(c);
     setWallet("");
     setResult(null);
@@ -67,6 +90,10 @@ export default function Claim() {
 
   async function confirm() {
     if (!active) return;
+    if (Date.now() < CLAIM_OPEN_AT) {
+      setResult({ ok: false, message: "Claiming hasn't opened yet." });
+      return;
+    }
     const trimmed = wallet.trim();
     if (!/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
       setResult({ ok: false, message: "That doesn't look like a valid EVM address." });
@@ -111,7 +138,11 @@ export default function Claim() {
 
       <div className="wrap stack">
         <div className="stack" style={{ gap: 10 }}>
-          <span className="chip chip-live">● Claim open</span>
+          {isOpen ? (
+            <span className="chip chip-live">● Claim open</span>
+          ) : (
+            <span className="chip">⏳ Claim opens in {formatCountdown(msLeft)}</span>
+          )}
           <h1 className="h-lg" style={{ color: "var(--cream)", textShadow: "4px 4px 0 var(--ink)" }}>
             Claim your <span className="word-yolk">spot</span>
           </h1>
@@ -124,7 +155,13 @@ export default function Claim() {
 
         <div className="community-grid">
           {COMMUNITIES.map((c) => (
-            <button key={c.key} className="community-tile" onClick={() => openCommunity(c)}>
+            <button
+              key={c.key}
+              className="community-tile"
+              onClick={() => openCommunity(c)}
+              disabled={!isOpen}
+              style={!isOpen ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+            >
               <img src={c.image} alt={c.displayName} />
               <span>{c.displayName}</span>
               <span className="community-count">{byCommunity[c.sheetName.toLowerCase()] ?? 0} claimed</span>
