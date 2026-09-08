@@ -19,6 +19,8 @@ export const ASSETS = {
    */
   community: (filename: string) => `${STORAGE}/Communities/${encodeURIComponent(filename)}`,
 
+  chickenRush: `${STORAGE}/chicken-rush.jpg`,
+
   // Coop cards on /home
   cards: {
     barn: `${STORAGE}/Barn.jpg`,
