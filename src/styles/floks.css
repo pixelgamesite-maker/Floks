@@ -44,7 +44,10 @@ body {
 .flok-bg {
   position: fixed;
   inset: 0;
-  background: var(--cream) url("/Flok-background.png") center / cover no-repeat;
+  background-color: var(--cream);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   z-index: -2;
 }
 .flok-bg::after {
@@ -146,6 +149,24 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
 .chip-lock  { background: var(--straw); }
 .chip-soon  { background: var(--beak); }
 
+/* A chip that must never wrap or grow past its row — used for the "gifted
+   by @handle" badge in chat, which used to reflow into a multi-line blob
+   because .chip has no white-space rule of its own. Uppercase + wide
+   letter-spacing (inherited from .chip) also made handles read wider than
+   they needed to, so both are turned off here. */
+.gift-badge {
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 0.6rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  min-width: 0; /* the actual fix — a flex item defaults to min-width:auto,
+                   which silently overrides max-width/ellipsis and lets it
+                   overflow its row instead of truncating */
+}
+
 /* ── Header ─────────────────────────────────────────── */
 .topbar {
   position: sticky;
@@ -182,7 +203,9 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
   place-items: center;
   font-size: 1.1rem;
   box-shadow: var(--pop-sm);
+  overflow: hidden;
 }
+.brand-mark img { width: 100%; height: 100%; object-fit: cover; }
 .who { display: flex; align-items: center; gap: 10px; }
 .who img {
   width: 34px; height: 34px;
@@ -337,13 +360,15 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
   to   { transform: translateX(-50%); }
 }
 
-/* ── Egg (SVG version, used on Landing + Callback) ──── */
-.egg { width: min(260px, 60vw); animation: bob 3.4s ease-in-out infinite; }
-@keyframes bob {
-  0%, 100% { transform: translateY(0) rotate(-2deg); }
-  50%      { transform: translateY(-12px) rotate(2deg); }
+/* Hover-charge state — used on Landing while the sign-in button is focused/hovered */
+.egg-charged {
+  animation: egg-charge 0.6s ease-in-out infinite !important;
+  filter: drop-shadow(0 0 16px var(--yolk));
 }
-.egg-crack { transition: opacity 0.25s ease, transform 0.25s ease; }
+@keyframes egg-charge {
+  0%, 100% { transform: rotate(-5deg) scale(1.03); }
+  50%      { transform: rotate(5deg) scale(1.07); }
+}
 
 /* ── Egg art ────────────────────────────────────────── */
 .egg-stage { display: grid; place-items: center; padding: 10px; }
@@ -536,6 +561,194 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
 .market-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .market-price { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; opacity: 0.7; }
 
+/* ── Global chat ────────────────────────────────────── */
+.chat-panel { display: flex; flex-direction: column; gap: 10px; }
+
+.chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+
+.chat-row { display: flex; gap: 10px; align-items: flex-start; }
+.chat-row-me { flex-direction: row-reverse; }
+.chat-row-me .chat-bubble { background: var(--yolk); }
+
+.chat-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  object-fit: cover;
+  background: var(--straw);
+  flex-shrink: 0;
+}
+
+.chat-bubble {
+  max-width: 72%;
+  overflow: hidden;
+  background: var(--shell);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: var(--pop-sm);
+}
+.chat-meta {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  opacity: 0.6;
+}
+.chat-delete {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  color: var(--comb);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.5;
+}
+.chat-delete:hover { opacity: 1; }
+.chat-bubble p { margin: 2px 0 0; font-size: 0.88rem; line-height: 1.4; word-break: break-word; }
+
+.chat-input-row { display: flex; gap: 8px; }
+
+/* ── Hamburger menu ─────────────────────────────────── */
+.hamburger-btn {
+  width: 40px; height: 40px;
+  border: var(--edge);
+  border-radius: 10px;
+  background: var(--shell);
+  box-shadow: var(--pop-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.hamburger-btn span { width: 18px; height: 2px; background: var(--ink); border-radius: 2px; }
+.hamburger-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+
+.nav-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(20, 18, 16, 0.6);
+  backdrop-filter: blur(4px);
+  animation: fade-in 0.22s ease both;
+}
+
+.nav-drawer {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: min(340px, 86vw);
+  background: var(--shell);
+  border-right: var(--edge);
+  box-shadow: var(--pop-lg);
+  display: flex;
+  flex-direction: column;
+  animation: nav-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes nav-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+.nav-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 24px;
+}
+
+/* ── Chat side tab + full-height sliding panel ─────────── */
+.chat-tab {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  z-index: 60;
+  transform: translateY(-50%);
+  width: 34px;
+  padding: 14px 4px;
+  border: var(--edge);
+  border-right: none;
+  border-radius: 14px 0 0 14px;
+  background: var(--yolk);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: -4px 4px 0 var(--ink);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, width 0.15s ease;
+}
+.chat-tab:hover { transform: translateY(-50%) translateX(-3px); box-shadow: -8px 6px 0 var(--ink); }
+.chat-tab span:first-child { font-size: 1rem; line-height: 1; }
+.chat-tab-label { font-size: 1.1rem; line-height: 1; }
+
+.chat-panel-drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: min(420px, 92vw);
+  background: var(--shell);
+  border-left: var(--edge);
+  box-shadow: var(--pop-lg);
+  display: flex;
+  flex-direction: column;
+  animation: chat-panel-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes chat-panel-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+.chat-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px 20px;
+  overflow: hidden;
+}
+/* GlobalChat's own message list scrolls; give it real height to work with
+   now that it's inside a full-height panel instead of a capped floating box. */
+.chat-panel-body .chat-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.chat-panel-body .chat-list { flex: 1; min-height: 0; max-height: none; }
+
+@media (max-width: 480px) {
+  .chat-panel-drawer { width: 100vw; border-left: none; }
+}
+
+
+/* ── Gambling arena ─────────────────────────────────── */
+.gamble-card {
+  padding: clamp(18px, 3vw, 30px);
+  border: var(--edge);
+  border-radius: 20px;
+  background: linear-gradient(160deg, var(--shell), var(--cream));
+  box-shadow: var(--pop);
+}
+.gamble-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border: var(--edge);
+  border-radius: 14px;
+  font-family: var(--display);
+  font-weight: 800;
+}
+.gamble-result.win  { background: var(--mint); }
+.gamble-result.lose { background: var(--comb); color: var(--cream); }
+
 /* ── Layout helpers ─────────────────────────────────── */
 .wrap { max-width: 1080px; margin: 0 auto; padding: clamp(28px, 5vw, 60px) var(--gutter); }
 .wrap-narrow { max-width: 760px; }
@@ -671,4 +884,49 @@ h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 0.94; letter-s
     transition-duration: 0.001ms !important;
   }
   html { scroll-behavior: auto; }
+}
+
+/* ── Community claim page ───────────────────────────── */
+.community-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+}
+.community-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px;
+  border: var(--edge);
+  border-radius: 16px;
+  background: var(--shell);
+  box-shadow: var(--pop-sm);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.community-tile:hover { transform: translate(-2px, -2px); box-shadow: var(--pop); }
+.community-tile:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: var(--pop-sm); }
+.community-tile img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 2px solid var(--ink);
+  background: var(--straw);
+}
+.community-tile span {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-align: center;
+  line-height: 1.2;
+}
+.community-count {
+  font-family: var(--mono) !important;
+  font-weight: 700 !important;
+  font-size: 0.62rem !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.6;
 }

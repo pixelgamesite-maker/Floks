@@ -1,13 +1,21 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { WagmiProvider } from "wagmi";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
+import "@rainbow-me/rainbowkit/styles.css";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
-import { Backdrop, Egg } from "./components/Shell";
+import { SoundProvider } from "./hooks/useSound";
+import { HatchProvider, useHatchProgress } from "./hooks/useHatchProgress";
+import { Backdrop, EggArt } from "./components/Shell";
+import { ChatWidget } from "./components/ChatWidget";
+import { wagmiConfig } from "./lib/web3";
 
 import Landing from "./pages/Landing";
 import Callback from "./pages/Auth/callback";
-import Home from "./pages/Home";
 import RoostEvent from "./pages/RoostEvent";
 import TheBarn from "./pages/TheBarn";
 import ChickenChallenge from "./pages/ChickenChallenge";
+import Claim from "./pages/Claim";
 
 import "./styles/floks.css";
 
@@ -19,7 +27,7 @@ function Gate({ children }: { children: React.ReactNode }) {
       <div className="page">
         <Backdrop />
         <div className="wrap center" style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
-          <Egg crack={0} />
+          <EggArt level={0} size={160} />
         </div>
       </div>
     );
@@ -28,48 +36,79 @@ function Gate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * Routes + the floating chat widget, as siblings. Mounting ChatWidget here
+ * (rather than inside each page) means it survives navigation between
+ * gated pages instead of closing and refetching history on every route
+ * change — a resident mid-conversation doesn't lose it by tapping to the
+ * market and back.
+ */
+function AppShell() {
+  const { session } = useAuth();
+  const { refresh } = useHatchProgress();
+
+  return (
+    <>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/callback" element={<Callback />} />
+        {/* Public, no X login at all — anyone can open this directly. */}
+        <Route path="/claim" element={<Claim />} />
+        {/* /home used to be a 3-card picker; there's one real destination
+            now, so this just redirects — kept so any old links still work. */}
+        <Route path="/home" element={<Navigate to="/roost-event" replace />} />
+        <Route
+          path="/roost-event"
+          element={
+            <Gate>
+              <RoostEvent />
+            </Gate>
+          }
+        />
+        <Route
+          path="/the-barn"
+          element={
+            <Gate>
+              <TheBarn />
+            </Gate>
+          }
+        />
+        <Route
+          path="/chicken-challenge"
+          element={
+            <Gate>
+              <ChickenChallenge />
+            </Gate>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
+      {session && <ChatWidget onSent={refresh} />}
+    </>
+  );
+}
+
+const queryClient = new QueryClient();
+
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/callback" element={<Callback />} />
-          <Route
-            path="/home"
-            element={
-              <Gate>
-                <Home />
-              </Gate>
-            }
-          />
-          <Route
-            path="/roost-event"
-            element={
-              <Gate>
-                <RoostEvent />
-              </Gate>
-            }
-          />
-          <Route
-            path="/the-barn"
-            element={
-              <Gate>
-                <TheBarn />
-              </Gate>
-            }
-          />
-          <Route
-            path="/chicken-challenge"
-            element={
-              <Gate>
-                <ChickenChallenge />
-              </Gate>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider>
+          <SoundProvider>
+            <AuthProvider>
+              {/* HatchProvider needs useAuth() internally, so it must nest inside
+                  AuthProvider — order here isn't cosmetic. */}
+              <HatchProvider>
+                <BrowserRouter>
+                  <AppShell />
+                </BrowserRouter>
+              </HatchProvider>
+            </AuthProvider>
+          </SoundProvider>
+        </RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }

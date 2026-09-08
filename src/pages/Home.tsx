@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useSound } from "../hooks/useSound";
 import { Backdrop, TopBar, Ticker } from "../components/Shell";
+import { ASSETS } from "../lib/assets";
 
 type Coop = {
   to: string;
@@ -11,26 +13,31 @@ type Coop = {
   tag: string;
 };
 
+// NOTE: routes are unchanged (/roost-event, /the-barn) but the labels are
+// swapped from the original build — the egg-claim/tasks/market page that
+// lives at /roost-event is the actual "Barn" from the article (the 72-hour
+// contribution routine), so it's labelled The Barn and left open. The
+// locked teaser at /the-barn is labelled Roost Event instead.
 const COOPS: Coop[] = [
   {
     to: "/roost-event",
-    art: "/Card-1.png",
-    name: "Roost Event",
-    sub: "Read the plan, take the first tasks",
+    art: ASSETS.cards.barn,
+    name: "The Barn",
+    sub: "Claim your egg, earn points, hatch",
     status: "open",
     tag: "Open",
   },
   {
     to: "/the-barn",
-    art: "/Card-2.png",
-    name: "The Barn",
-    sub: "72 hours · earn points, hatch your egg",
+    art: ASSETS.cards.roost,
+    name: "Roost Event",
+    sub: "Coming soon",
     status: "locked",
     tag: "Locked",
   },
   {
     to: "/chicken-challenge",
-    art: "/Card-3.png",
+    art: ASSETS.cards.challenge,
     name: "Chicken Challenge",
     sub: "Head-to-head, for bragging rights",
     status: "locked",
@@ -40,7 +47,13 @@ const COOPS: Coop[] = [
 
 export default function Home() {
   const { resident } = useAuth();
+  const { play } = useSound();
   const navigate = useNavigate();
+
+  function openCoop(c: Coop) {
+    play("select");
+    navigate(c.to);
+  }
 
   return (
     <div className="page">
@@ -68,7 +81,7 @@ export default function Home() {
               <button
                 key={c.name}
                 className={`coop ${c.status === "locked" ? "coop-locked" : ""}`}
-                onClick={() => navigate(c.to)}
+                onClick={() => openCoop(c)}
                 aria-label={`${c.name} — ${c.status === "open" ? "open" : "locked"}`}
               >
                 <div className="coop-card">

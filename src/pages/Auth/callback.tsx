@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase";
-import { Backdrop, Egg } from "../components/Shell";
+import { supabase } from "../../lib/supabase";
+import { Backdrop, EggArt } from "../../components/Shell";
 
 export default function Callback() {
   const navigate = useNavigate();
@@ -29,7 +29,7 @@ export default function Callback() {
 
       const { data } = await supabase.auth.getSession();
       if (!alive) return;
-      if (data.session) navigate("/home", { replace: true });
+      if (data.session) navigate("/roost-event", { replace: true });
       else setError("No session came back from X. Try signing in once more.");
     }
 
@@ -43,7 +43,7 @@ export default function Callback() {
     <div className="page">
       <Backdrop />
       <div className="wrap center stack" style={{ minHeight: "100vh", justifyContent: "center", alignItems: "center" }}>
-        <Egg crack={error ? 0.2 : 1} />
+        <EggArt level={0} size={220} energized={!error} />
         {error ? (
           <>
             <p className="notice">{error}</p>
