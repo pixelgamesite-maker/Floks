@@ -1,9 +1,14 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { WagmiProvider } from "wagmi";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
+import "@rainbow-me/rainbowkit/styles.css";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { SoundProvider } from "./hooks/useSound";
 import { HatchProvider, useHatchProgress } from "./hooks/useHatchProgress";
 import { Backdrop, EggArt } from "./components/Shell";
 import { ChatWidget } from "./components/ChatWidget";
+import { wagmiConfig } from "./lib/web3";
 
 import Landing from "./pages/Landing";
 import Callback from "./pages/Auth/callback";
@@ -84,18 +89,26 @@ function AppShell() {
   );
 }
 
+const queryClient = new QueryClient();
+
 export default function App() {
   return (
-    <SoundProvider>
-      <AuthProvider>
-        {/* HatchProvider needs useAuth() internally, so it must nest inside
-            AuthProvider — order here isn't cosmetic. */}
-        <HatchProvider>
-          <BrowserRouter>
-            <AppShell />
-          </BrowserRouter>
-        </HatchProvider>
-      </AuthProvider>
-    </SoundProvider>
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider>
+          <SoundProvider>
+            <AuthProvider>
+              {/* HatchProvider needs useAuth() internally, so it must nest inside
+                  AuthProvider — order here isn't cosmetic. */}
+              <HatchProvider>
+                <BrowserRouter>
+                  <AppShell />
+                </BrowserRouter>
+              </HatchProvider>
+            </AuthProvider>
+          </SoundProvider>
+        </RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }
