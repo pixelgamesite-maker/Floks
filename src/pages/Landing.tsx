@@ -1,14 +1,25 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { supabase } from "../lib/supabase";
 import { ASSETS } from "../lib/assets";
 
 /**
- * Landing is now the countdown gate, not the X sign-in screen — the timer
- * IS the lock. Everything past this page is meant to stay closed until
- * unlock_at_epoch (app_config, schema.sql) passes; Connect Wallet only
- * becomes clickable once it does.
+ * ⚠️ The countdown target — a plain hardcoded date, not read from any
+ * database. This used to fetch its target from Supabase's app_config
+ * table; that table no longer exists (the whole schema was intentionally
+ * dropped moving to an on-chain-only setup), which is exactly why the
+ * button was stuck on "Locked" with no visible timer at all — the fetch
+ * returned nothing, so the countdown never had a value to count down from.
+ *
+ * Set to roughly 72 hours from when this was written. Adjust this one line
+ * to the actual moment you want the site to unlock — nothing else needs to
+ * change, this is the only place the target lives now.
+ */
+const UNLOCK_AT = new Date("2026-09-12T18:00:00Z");
+
+/**
+ * Landing is the countdown gate, not a sign-in screen — the timer IS the
+ * lock. Connect Wallet only becomes clickable once UNLOCK_AT passes.
  *
  * What happens after a successful connect is deliberately not built yet —
  * the holdings board depends on confirming whether the NFT contract
@@ -20,35 +31,25 @@ export default function Landing() {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
 
-  const [unlockAt, setUnlockAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    supabase
-      .from("app_config")
-      .select("value")
-      .eq("key", "unlock_at_epoch")
-      .maybeSingle()
-      .then(({ data }) => setUnlockAt(data ? data.value * 1000 : null));
-  }, []);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const msLeft = unlockAt != null ? Math.max(0, unlockAt - now) : null;
+  const msLeft = Math.max(0, UNLOCK_AT.getTime() - now);
   const unlocked = msLeft === 0;
-  const d = msLeft != null ? Math.floor(msLeft / 86400000) : 0;
-  const h = msLeft != null ? Math.floor(msLeft / 3600000) % 24 : 0;
-  const m = msLeft != null ? Math.floor(msLeft / 60000) % 60 : 0;
-  const s = msLeft != null ? Math.floor(msLeft / 1000) % 60 : 0;
+  const d = Math.floor(msLeft / 86400000);
+  const h = Math.floor(msLeft / 3600000) % 24;
+  const m = Math.floor(msLeft / 60000) % 60;
+  const s = Math.floor(msLeft / 1000) % 60;
 
   return (
     <div className="page">
       <div
         className="flok-bg"
-        style={{ backgroundImage: `url("${ASSETS.chickenRush}")` }}
+        style={{ backgroundImage: `url("${ASSETS.landingBackground}")` }}
         aria-hidden="true"
       />
 
@@ -60,7 +61,7 @@ export default function Landing() {
           Welcome to the <span className="word-yolk">Barn</span>
         </h1>
 
-        {msLeft !== null && !unlocked && (
+        {!unlocked && (
           <div className="stack" style={{ gap: 10, alignItems: "center" }}>
             <span className="eyebrow" style={{ color: "var(--cream)" }}>Unlocking in</span>
             <div className="clock">
